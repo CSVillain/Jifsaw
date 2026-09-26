@@ -1,0 +1,354 @@
+// Jigsaw puzzle engine: cuts a playing <video> (or still image fallback) into
+// interlocking canvas pieces and handles drag/drop + snap-to-place.
+const Puzzle = (() => {
+  function buildKnobs(rows, cols) {
+    const vSign = [], hSign = [];
+    for (let r = 0; r < rows; r++) {
+      vSign.push([]);
+      for (let c = 0; c < cols - 1; c++) vSign[r].push(Math.random() < 0.5 ? 1 : -1);
+    }
+    for (let r = 0; r < rows - 1; r++) {
+      hSign.push([]);
+      for (let c = 0; c < cols; c++) hSign[r].push(Math.random() < 0.5 ? 1 : -1);
+    }
+    return { vSign, hSign };
+  }
+
+  function knobSegment(p0, p1, dir, normal, sign, bump) {
+    const L = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    const neck1 = { x: p0.x + dir.x * 0.35 * L, y: p0.y + dir.y * 0.35 * L };
+    const neck2 = { x: p0.x + dir.x * 0.65 * L, y: p0.y + dir.y * 0.65 * L };
+    const mid = { x: p0.x + dir.x * 0.5 * L, y: p0.y + dir.y * 0.5 * L };
+    const cx = mid.x + normal.x * sign * bump, cy = mid.y + normal.y * sign * bump;
+    const half = 0.15 * L;
+    const top = { x: cx - dir.x * half, y: cy - dir.y * half };
+    const bot = { x: cx + dir.x * half, y: cy + dir.y * half };
+
+    let d = ` L ${neck1.x} ${neck1.y}`;
+    d += ` C ${neck1.x + normal.x * sign * bump * 0.6} ${neck1.y + normal.y * sign * bump * 0.6}, ${top.x - dir.x * half * 0.6 + normal.x * sign * bump * 0.2} ${top.y - dir.y * half * 0.6 + normal.y * sign * bump * 0.2}, ${top.x} ${top.y}`;
+    d += ` C ${cx - dir.x * half * 0.5 + normal.x * sign * bump * 1.4} ${cy - dir.y * half * 0.5 + normal.y * sign * bump * 1.4}, ${cx + dir.x * half * 0.5 + normal.x * sign * bump * 1.4} ${cy + dir.y * half * 0.5 + normal.y * sign * bump * 1.4}, ${bot.x} ${bot.y}`;
+    d += ` C ${bot.x + dir.x * half * 0.6 + normal.x * sign * bump * 0.2} ${bot.y + dir.y * half * 0.6 + normal.y * sign * bump * 0.2}, ${neck2.x + normal.x * sign * bump * 0.6} ${neck2.y + normal.y * sign * bump * 0.6}, ${neck2.x} ${neck2.y}`;
+    d += ` L ${p1.x} ${p1.y}`;
+    return d;
+  }
+
+  // Builds a piece outline in LOCAL coordinates (origin = piece canvas top-left,
+  // which sits `pad` px before the piece's actual cell). Every piece uses the
+  // same local cell rect (pad,pad)-(pad+pw,pad+ph); only knob directions differ.
+  function buildPiecePath(r, c, rows, cols, pw, ph, pad, bump, vSign, hSign) {
+    const x0 = pad, y0 = pad, x1 = pad + pw, y1 = pad + ph;
+    let d = `M ${x0} ${y0}`;
+    d += r === 0 ? ` L ${x1} ${y0}` : knobSegment({ x: x0, y: y0 }, { x: x1, y: y0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, hSign[r - 1][c], bump);
+    d += c === cols - 1 ? ` L ${x1} ${y1}` : knobSegment({ x: x1, y: y0 }, { x: x1, y: y1 }, { x: 0, y: 1 }, { x: 1, y: 0 }, vSign[r][c], bump);
+    d += r === rows - 1 ? ` L ${x0} ${y1}` : knobSegment({ x: x1, y: y1 }, { x: x0, y: y1 }, { x: -1, y: 0 }, { x: 0, y: 1 }, hSign[r][c], bump);
+    d += c === 0 ? ` L ${x0} ${y0}` : knobSegment({ x: x0, y: y1 }, { x: x0, y: y0 }, { x: 0, y: -1 }, { x: 1, y: 0 }, vSign[r][c - 1], bump);
+    return d + ' Z';
+  }
+
+  class JigsawGame {
+    /**
+     * @param {object} opts
+     * @param {HTMLElement} opts.board
+     * @param {HTMLElement} opts.tray
+     * @param {HTMLVideoElement|HTMLImageElement} opts.source - already loaded & playing (or a still image)
+     * @param {number} opts.rows
+     * @param {number} opts.cols
+     * @param {number} opts.width  board pixel width
+     * @param {number} opts.height board pixel height
+     * @param {(solved:boolean)=>void} opts.onProgress
+     */
+    constructor(opts) {
+      Object.assign(this, opts);
+      this.pw = this.width / this.cols;
+      this.ph = this.height / this.rows;
+      this.bump = Math.min(this.pw, this.ph) * 0.22;
+      // Padding around each piece's own cell so its canvas fully contains any
+      // knob that bulges out from an interlocking edge.
+      this.pad = Math.ceil(this.bump * 1.6);
+      this.snapDist = Math.min(this.pw, this.ph) * 0.35;
+      this.dpr = Math.min(window.devicePixelRatio || 1, 3);
+      this.pieces = [];
+      this.dragging = null;
+      this.hintOn = false;
+      this.scattered = false;
+
+      this._backCanvas = document.createElement('canvas');
+      this._backCanvas.width = this.width;
+      this._backCanvas.height = this.height;
+      this._backCtx = this._backCanvas.getContext('2d');
+
+      // Sits behind locked pieces only, masked to their own shapes (slightly
+      // dilated), so hairline anti-aliasing gaps between two locked pieces
+      // show the real image instead of a seam — without revealing any part
+      // of the board that isn't already solved.
+      this._fillCanvas = document.createElement('canvas');
+      this._fillCanvas.width = this.width * this.dpr;
+      this._fillCanvas.height = this.height * this.dpr;
+      this._fillCanvas.style.position = 'absolute';
+      this._fillCanvas.style.left = '0';
+      this._fillCanvas.style.top = '0';
+      this._fillCanvas.style.width = this.width + 'px';
+      this._fillCanvas.style.height = this.height + 'px';
+      this._fillCtx = this._fillCanvas.getContext('2d');
+      this.board.appendChild(this._fillCanvas);
+
+      this._maskCanvas = document.createElement('canvas');
+      this._maskCanvas.width = this.width * this.dpr;
+      this._maskCanvas.height = this.height * this.dpr;
+      this._maskCtx = this._maskCanvas.getContext('2d');
+
+      this._boundMove = this._onPointerMove.bind(this);
+      this._boundUp = this._onPointerUp.bind(this);
+      window.addEventListener('pointermove', this._boundMove);
+      window.addEventListener('pointerup', this._boundUp);
+
+      this._buildPieces();
+      this._layoutPile();
+      this._raf = requestAnimationFrame(() => this._render());
+    }
+
+    destroy() {
+      cancelAnimationFrame(this._raf);
+      this._hidePileHint();
+      window.removeEventListener('pointermove', this._boundMove);
+      window.removeEventListener('pointerup', this._boundUp);
+    }
+
+    setHint(on) {
+      this.hintOn = on;
+      this.board.classList.toggle('show-hint', on);
+    }
+
+    // Scatters unlocked pieces to random spots in the tray, animated. Used
+    // both to break up the initial pile (first interaction) and by the
+    // Shuffle button afterwards.
+    shuffle() {
+      const wasPiled = !this.scattered;
+      this.scattered = true;
+      if (wasPiled) this._hidePileHint();
+
+      const cw = this.pw + 2 * this.pad;
+      const ch = this.ph + 2 * this.pad;
+      const maxX = Math.max(0, this.tray.clientWidth - cw);
+      const trayH = Math.max(this.tray.clientHeight, this.tray.scrollHeight);
+      const maxY = Math.max(0, trayH - ch);
+
+      this.pieces.forEach(p => {
+        if (p.locked) return;
+        this.tray.appendChild(p.canvas);
+        p.canvas.classList.remove('piled');
+        p.canvas.style.position = 'absolute';
+        p.canvas.style.zIndex = 1;
+        const delay = wasPiled ? Math.random() * 220 : 0;
+        p.canvas.style.transition =
+          `left 0.5s cubic-bezier(.22,1.4,.36,1) ${delay}ms, ` +
+          `top 0.5s cubic-bezier(.22,1.4,.36,1) ${delay}ms, ` +
+          `transform 0.4s ease ${delay}ms`;
+        const left = Math.random() * maxX;
+        const top = Math.random() * maxY;
+        requestAnimationFrame(() => {
+          p.canvas.style.left = left + 'px';
+          p.canvas.style.top = top + 'px';
+          p.canvas.style.transform = 'rotate(0deg)';
+        });
+        p.canvas.addEventListener('transitionend', () => { p.canvas.style.transition = ''; }, { once: true });
+      });
+    }
+
+    // Initial "face-down deck" look: pieces stacked near the tray's center
+    // with a slight random offset/rotation, waiting for the player to tap
+    // the pile (or hit Shuffle) to scatter them.
+    _layoutPile() {
+      const cw = this.pw + 2 * this.pad;
+      const ch = this.ph + 2 * this.pad;
+      const trayW = Math.max(this.tray.clientWidth, cw);
+      const trayH = Math.max(this.tray.clientHeight, 220);
+      const cx = trayW / 2 - cw / 2;
+      const cy = trayH / 2 - ch / 2;
+      this.pieces.forEach((p, i) => {
+        const dx = (Math.random() - 0.5) * 14;
+        const dy = (Math.random() - 0.5) * 14;
+        const rot = (Math.random() - 0.5) * 18;
+        p.canvas.style.position = 'absolute';
+        p.canvas.style.transition = 'none';
+        p.canvas.style.left = (cx + dx) + 'px';
+        p.canvas.style.top = (cy + dy) + 'px';
+        p.canvas.style.transform = `rotate(${rot}deg)`;
+        p.canvas.style.zIndex = i + 1;
+        p.canvas.classList.add('piled');
+        this.tray.appendChild(p.canvas);
+      });
+      this._showPileHint();
+    }
+
+    _showPileHint() {
+      this._hidePileHint();
+      const hint = document.createElement('div');
+      hint.className = 'pile-hint';
+      hint.textContent = '👆 Tap the pile to scatter';
+      this.tray.appendChild(hint);
+      this._pileHint = hint;
+    }
+
+    _hidePileHint() {
+      if (this._pileHint) {
+        this._pileHint.remove();
+        this._pileHint = null;
+      }
+    }
+
+    solvedCount() {
+      return this.pieces.filter(p => p.locked).length;
+    }
+
+    _buildPieces() {
+      const { vSign, hSign } = buildKnobs(this.rows, this.cols);
+      const cw = this.pw + 2 * this.pad;
+      const ch = this.ph + 2 * this.pad;
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          const canvas = document.createElement('canvas');
+          canvas.width = cw * this.dpr;
+          canvas.height = ch * this.dpr;
+          canvas.style.width = cw + 'px';
+          canvas.style.height = ch + 'px';
+          canvas.className = 'piece';
+          const ctx = canvas.getContext('2d');
+          const d = buildPiecePath(r, c, this.rows, this.cols, this.pw, this.ph, this.pad, this.bump, vSign, hSign);
+          const piece = {
+            r, c, canvas, ctx,
+            path: new Path2D(d),
+            // Canvas top-left when correctly placed on the board.
+            home: { x: c * this.pw - this.pad, y: r * this.ph - this.pad },
+            locked: false,
+          };
+          canvas.addEventListener('pointerdown', (e) => this._onPointerDown(e, piece));
+          this.pieces.push(piece);
+        }
+      }
+    }
+
+    _render() {
+      if (this.source instanceof HTMLVideoElement) {
+        if (this.source.readyState >= 2) this._backCtx.drawImage(this.source, 0, 0, this.width, this.height);
+      } else if (this.source) {
+        this._backCtx.drawImage(this.source, 0, 0, this.width, this.height);
+      }
+
+      // Base layer behind locked pieces only: hides hairline AA seams between
+      // two locked neighbors, without revealing any unsolved part of the board.
+      const locked = this.pieces.filter(p => p.locked);
+      this._maskCtx.setTransform(1, 0, 0, 1, 0, 0);
+      this._maskCtx.clearRect(0, 0, this._maskCanvas.width, this._maskCanvas.height);
+      this._maskCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      this._maskCtx.fillStyle = '#fff';
+      this._maskCtx.strokeStyle = '#fff';
+      this._maskCtx.lineWidth = 2;
+      locked.forEach(p => {
+        this._maskCtx.save();
+        this._maskCtx.translate(p.home.x, p.home.y);
+        this._maskCtx.fill(p.path);
+        this._maskCtx.stroke(p.path); // slight dilation to guarantee overlap at shared edges
+        this._maskCtx.restore();
+      });
+
+      this._fillCtx.setTransform(1, 0, 0, 1, 0, 0);
+      this._fillCtx.clearRect(0, 0, this._fillCanvas.width, this._fillCanvas.height);
+      this._fillCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      if (locked.length) {
+        this._fillCtx.drawImage(this._backCanvas, 0, 0);
+        this._fillCtx.globalCompositeOperation = 'destination-in';
+        this._fillCtx.setTransform(1, 0, 0, 1, 0, 0);
+        this._fillCtx.drawImage(this._maskCanvas, 0, 0);
+        this._fillCtx.globalCompositeOperation = 'source-over';
+        this._fillCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      }
+
+      this.pieces.forEach(p => {
+        p.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        p.ctx.clearRect(0, 0, p.canvas.width, p.canvas.height);
+        p.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        p.ctx.save();
+        p.ctx.clip(p.path);
+        p.ctx.drawImage(this._backCanvas, -p.home.x, -p.home.y);
+        p.ctx.restore();
+        if (!p.locked) {
+          p.ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+          p.ctx.lineWidth = 1;
+          p.ctx.stroke(p.path);
+        }
+        if (this.hintOn && !p.locked) {
+          p.ctx.save();
+          p.ctx.globalAlpha = 0.35;
+          p.ctx.clip(p.path);
+          p.ctx.fillStyle = '#fff';
+          p.ctx.fillRect(0, 0, p.canvas.width, p.canvas.height);
+          p.ctx.restore();
+        }
+      });
+      this._raf = requestAnimationFrame(() => this._render());
+    }
+
+    _onPointerDown(e, piece) {
+      if (piece.locked) return;
+      if (!this.scattered) {
+        this.shuffle();
+        return;
+      }
+      this.dragging = piece;
+      piece.canvas.setPointerCapture(e.pointerId);
+      const rect = piece.canvas.getBoundingClientRect();
+      this._offsetX = e.clientX - rect.left;
+      this._offsetY = e.clientY - rect.top;
+      document.body.appendChild(piece.canvas);
+      piece.canvas.style.position = 'fixed';
+      piece.canvas.style.zIndex = 1000;
+      piece.canvas.classList.add('dragging');
+    }
+
+    _onPointerMove(e) {
+      if (!this.dragging) return;
+      this.dragging.canvas.style.left = (e.clientX - this._offsetX) + 'px';
+      this.dragging.canvas.style.top = (e.clientY - this._offsetY) + 'px';
+    }
+
+    _onPointerUp(e) {
+      if (!this.dragging) return;
+      const p = this.dragging;
+      this.dragging = null;
+      p.canvas.classList.remove('dragging');
+      const boardRect = this.board.getBoundingClientRect();
+      const dropX = e.clientX - this._offsetX - boardRect.left;
+      const dropY = e.clientY - this._offsetY - boardRect.top;
+
+      if (Math.hypot(dropX - p.home.x, dropY - p.home.y) < this.snapDist) {
+        this.board.appendChild(p.canvas);
+        p.canvas.style.position = 'absolute';
+        p.canvas.style.left = p.home.x + 'px';
+        p.canvas.style.top = p.home.y + 'px';
+        p.canvas.style.zIndex = 1;
+        p.locked = true;
+        p.canvas.classList.add('locked', 'just-locked');
+        p.canvas.addEventListener('animationend', () => p.canvas.classList.remove('just-locked'), { once: true });
+      } else {
+        const trayRect = this.tray.getBoundingClientRect();
+        this.tray.appendChild(p.canvas);
+        p.canvas.style.position = 'absolute';
+        const cw = this.pw + 2 * this.pad;
+        const ch = this.ph + 2 * this.pad;
+        let left = e.clientX - this._offsetX - trayRect.left;
+        let top = e.clientY - this._offsetY - trayRect.top;
+        left = Math.max(0, Math.min(left, this.tray.clientWidth - cw));
+        top = Math.max(0, Math.min(top, Math.max(this.tray.clientHeight, this.tray.scrollHeight) - ch));
+        p.canvas.style.left = left + 'px';
+        p.canvas.style.top = top + 'px';
+        p.canvas.style.zIndex = 1;
+      }
+
+      const solved = this.pieces.every(pp => pp.locked);
+      this.onProgress?.(solved);
+    }
+  }
+
+  return { JigsawGame };
+})();
