@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true">
@@ -94,9 +94,15 @@
 
     <div class="play-area">
       <div id="board"></div>
-      <div id="tray"></div>
     </div>
   </main>
+
+  <!-- Sits outside .game (and its fadeUp animation) so this stays fixed to
+       the real viewport: an ancestor with a transform-touching animation —
+       even a finished one with fill-mode "both" — becomes the containing
+       block for position:fixed descendants, which silently breaks the
+       scatter/clamp math that assumes window.innerWidth/innerHeight. -->
+  <div id="tray"></div>
 
   <div id="winOverlay" class="win-overlay hidden">
     <canvas id="confettiCanvas" class="confetti-canvas"></canvas>
@@ -116,8 +122,8 @@
 
   <script src="giphy.js"></script>
   <script src="confetti.js"></script>
-  <script src="puzzle.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <script src="puzzle.js?v=9"></script>
+  <script src="app.js?v=9"></script>
 
   <footer class="site-footer">
     <p><a href="https://gtbr.co.uk/" target="_blank" rel="noopener">GTBR</a> side-quest 🪿</p> 

@@ -32,8 +32,14 @@
   const playAgainBtn = document.getElementById('playAgainBtn');
   const newThemeBtn = document.getElementById('newThemeBtn');
 
-  const BOARD_W = 480;
+  const BOARD_W_MAX = 480;
   const DIFFICULTY_LABELS = { '3x3': 'Easy', '4x3': 'Medium', '5x4': 'Hard' };
+
+  // Never wider than the viewport (minus side margin) so the board itself
+  // can't force horizontal scrolling on small screens.
+  function boardWidth() {
+    return Math.min(BOARD_W_MAX, window.innerWidth - 32);
+  }
 
   let currentGame = null;
   let timerInterval = null;
@@ -258,8 +264,9 @@
     tray.innerHTML = '';
 
     const { rows, cols } = parseDifficulty();
-    const boardH = Math.round(BOARD_W * (gif.height / gif.width));
-    board.style.width = BOARD_W + 'px';
+    const boardW = boardWidth();
+    const boardH = Math.round(boardW * (gif.height / gif.width));
+    board.style.width = boardW + 'px';
     board.style.height = boardH + 'px';
 
     if (currentGame) currentGame.destroy();
@@ -291,7 +298,7 @@
     currentGame = new Puzzle.JigsawGame({
       board, tray, source,
       rows, cols,
-      width: BOARD_W, height: boardH,
+      width: boardW, height: boardH,
       onProgress: (solved) => {
         const placed = currentGame.solvedCount();
         pieceCountEl.textContent = `${placed}/${total} placed`;
@@ -316,6 +323,8 @@
     game.classList.add('hidden');
     setupSection.classList.remove('hidden');
     setStatus('');
+    board.innerHTML = '';
+    tray.innerHTML = '';
   });
 
   function startTimer() {

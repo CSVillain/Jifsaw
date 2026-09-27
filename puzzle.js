@@ -99,8 +99,10 @@ const Puzzle = (() => {
 
       this._boundMove = this._onPointerMove.bind(this);
       this._boundUp = this._onPointerUp.bind(this);
+      this._boundResize = this._onResize.bind(this);
       window.addEventListener('pointermove', this._boundMove);
       window.addEventListener('pointerup', this._boundUp);
+      window.addEventListener('resize', this._boundResize);
 
       this._buildPieces();
       this._layoutPile();
@@ -110,8 +112,31 @@ const Puzzle = (() => {
     destroy() {
       cancelAnimationFrame(this._raf);
       clearTimeout(this._dealTimer);
+      clearTimeout(this._resizeTimer);
       window.removeEventListener('pointermove', this._boundMove);
       window.removeEventListener('pointerup', this._boundUp);
+      window.removeEventListener('resize', this._boundResize);
+    }
+
+    // Debounced: if the viewport changes size (resize, or mobile rotation)
+    // after pieces have already been dealt out, pull any that are now
+    // outside the new bounds back into view rather than leaving them
+    // stranded off-screen.
+    _onResize() {
+      clearTimeout(this._resizeTimer);
+      this._resizeTimer = setTimeout(() => {
+        if (!this.scattered) return;
+        this.pieces.forEach(p => {
+          if (p.locked || p === this.dragging) return;
+          const curLeft = parseFloat(p.canvas.style.left) || 0;
+          const curTop = parseFloat(p.canvas.style.top) || 0;
+          const { left, top } = this._clampToViewport(curLeft, curTop, p.rot);
+          if (left !== curLeft || top !== curTop) {
+            p.canvas.style.left = left + 'px';
+            p.canvas.style.top = top + 'px';
+          }
+        });
+      }, 150);
     }
 
     setHint(on) {
@@ -119,9 +144,10 @@ const Puzzle = (() => {
       this.board.classList.toggle('show-hint', on);
     }
 
-    // Deals unlocked pieces out across the tray: a jittered grid with shuffled
-    // slots so pieces spread evenly without overlapping, each with a loose
-    // tabletop rotation. Used for the opening deal and by the Shuffle button.
+    // Deals unlocked pieces out across the whole visible window: a jittered
+    // grid of viewport slots (excluding the board) so pieces spread evenly
+    // above/below/beside the board without needing a scroll, each with a
+    // loose tabletop rotation. Used for the opening deal and the Shuffle button.
     shuffle() {
       clearTimeout(this._dealTimer);
       const wasPiled = !this.scattered;
@@ -135,7 +161,7 @@ const Puzzle = (() => {
         const t = targets[i];
         this.tray.appendChild(p.canvas);
         p.canvas.classList.remove('piled');
-        p.canvas.style.position = 'absolute';
+        p.canvas.style.position = 'fixed';
         p.canvas.style.zIndex = 1;
         const delay = wasPiled ? i * 45 + Math.random() * 60 : Math.random() * 80;
         p.canvas.style.transition =
@@ -150,47 +176,105 @@ const Puzzle = (() => {
       });
     }
 
-    // Sizes the tray to fit `n` pieces in a grid across its full width.
-    _trayGeometry(n) {
-      const fw = (this.pw + this.bump * 1.2) * 1.12;
-      const fh = (this.ph + this.bump * 1.2) * 1.12;
-      const W = this.tray.clientWidth;
-      const cols = Math.max(1, Math.min(n, Math.floor(W / fw)));
-      const rows = Math.max(1, Math.ceil(n / cols));
-      const margin = 12;
-      this.tray.style.height = (rows * fh + margin * 2) + 'px';
-      return { cols, rows, cellW: W / cols, cellH: fh, margin };
-    }
-
-    _spreadTargets(n) {
-      const g = this._trayGeometry(Math.max(1, n));
+    // Builds a pool of candidate spots covering the whole viewport (minus a
+    // safe margin) and excluding the board's own rect, so pieces can land
+    // above, below, or beside the board without ever needing a scroll. If
+    // there isn't enough room around the board at the piece's natural size,
+    // the grid is packed tighter (allowing some overlap between pieces, never
+    // past the viewport edge) rather than falling back to a sparser grid
+    // that would leave pieces stacked past where they can actually fit.
+    _viewportSlots(n) {
       const cw = this.pw + 2 * this.pad;
       const ch = this.ph + 2 * this.pad;
-      const slots = Array.from({ length: g.cols * g.rows }, (_, i) => i);
+      const margin = 14;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const boardRect = this.board.getBoundingClientRect();
+      const boardPad = 18;
+      const bx0 = boardRect.left - boardPad, bx1 = boardRect.right + boardPad;
+      const by0 = boardRect.top - boardPad, by1 = boardRect.bottom + boardPad;
+      const availW = Math.max(cw, vw - margin * 2);
+      const availH = Math.max(ch, vh - margin * 2);
+
+      const buildPool = (fw, fh) => {
+        const cols = Math.max(1, Math.floor(availW / fw));
+        const rows = Math.max(1, Math.floor(availH / fh));
+        const slots = [];
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const cx = margin + (c + 0.5) * fw;
+            const cy = margin + (r + 0.5) * fh;
+            const overlapsBoard = cx > bx0 && cx < bx1 && cy > by0 && cy < by1;
+            if (!overlapsBoard) slots.push({ cx, cy });
+          }
+        }
+        return slots;
+      };
+
+      let scale = 1.08;
+      let fw = cw * scale, fh = ch * scale;
+      let slots = buildPool(fw, fh);
+      // Shrink the spacing (letting pieces sit closer, even touching) until
+      // enough non-board slots exist for every piece, or we hit a sane floor.
+      while (slots.length < n && scale > 0.45) {
+        scale -= 0.08;
+        fw = cw * scale;
+        fh = ch * scale;
+        slots = buildPool(fw, fh);
+      }
+
       for (let i = slots.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [slots[i], slots[j]] = [slots[j], slots[i]];
       }
+      return { pool: slots, fw, fh, cw, ch, margin, availW, availH };
+    }
+
+    // Keeps a piece's canvas box fully inside the current viewport — shared
+    // by the initial deal, drop-back-into-tray, and the resize re-clamp.
+    // `rotate()` pivots around the element's own center, so a rotated piece's
+    // on-screen bounding box is wider/taller than its unrotated canvas (up to
+    // its own diagonal at 45°) — clamping the unrotated box alone still lets
+    // a rotated piece's corners stick out past the viewport edge. We clamp
+    // the piece's CENTER to stay at least half that worst-case bounding box
+    // away from every edge, using the largest rotation any code path applies
+    // (see `rot`/`dispRot` assignments) as the bound.
+    _clampToViewport(left, top, rotDeg = 40) {
+      const cw = this.pw + 2 * this.pad;
+      const ch = this.ph + 2 * this.pad;
+      const a = Math.abs(rotDeg) * Math.PI / 180;
+      const boundW = cw * Math.cos(a) + ch * Math.sin(a);
+      const boundH = cw * Math.sin(a) + ch * Math.cos(a);
+      const cx = left + cw / 2, cy = top + ch / 2;
+      const halfW = Math.min(boundW, window.innerWidth) / 2;
+      const halfH = Math.min(boundH, window.innerHeight) / 2;
+      const clampedCx = Math.max(halfW, Math.min(window.innerWidth - halfW, cx));
+      const clampedCy = Math.max(halfH, Math.min(window.innerHeight - halfH, cy));
+      return { left: clampedCx - cw / 2, top: clampedCy - ch / 2 };
+    }
+
+    _spreadTargets(n) {
+      const { pool, fw, fh, cw, ch } = this._viewportSlots(n);
+      const maxRot = 36;
       return Array.from({ length: n }, (_, i) => {
-        const col = slots[i] % g.cols;
-        const row = Math.floor(slots[i] / g.cols);
-        const cx = (col + 0.5) * g.cellW + (Math.random() - 0.5) * g.cellW * 0.22;
-        const cy = g.margin + (row + 0.5) * g.cellH + (Math.random() - 0.5) * g.cellH * 0.18;
-        return { left: cx - cw / 2, top: cy - ch / 2, rot: (Math.random() - 0.5) * 36 };
+        const s = pool[i % pool.length];
+        const cx = s.cx + (Math.random() - 0.5) * fw * 0.3;
+        const cy = s.cy + (Math.random() - 0.5) * fh * 0.3;
+        const { left, top } = this._clampToViewport(cx - cw / 2, cy - ch / 2, maxRot);
+        return { left, top, rot: (Math.random() - 0.5) * maxRot };
       });
     }
 
-    // Opening moment: pieces land as a loose heap in the middle of the tray,
-    // then deal themselves out across it.
+    // Opening moment: pieces land as a loose heap over the board, then deal
+    // themselves out across the whole visible window.
     _layoutPile() {
       const cw = this.pw + 2 * this.pad;
       const ch = this.ph + 2 * this.pad;
-      this._trayGeometry(this.pieces.length);
-      const cx = this.tray.clientWidth / 2 - cw / 2;
-      const cy = this.tray.clientHeight / 2 - ch / 2;
+      const boardRect = this.board.getBoundingClientRect();
+      const cx = boardRect.left + boardRect.width / 2 - cw / 2;
+      const cy = boardRect.top + boardRect.height / 2 - ch / 2;
       this.pieces.forEach((p, i) => {
         p.rot = (Math.random() - 0.5) * 40;
-        p.canvas.style.position = 'absolute';
+        p.canvas.style.position = 'fixed';
         p.canvas.style.transition = 'none';
         p.canvas.style.left = (cx + (Math.random() - 0.5) * 30) + 'px';
         p.canvas.style.top = (cy + (Math.random() - 0.5) * 20) + 'px';
@@ -453,19 +537,13 @@ const Puzzle = (() => {
         p.canvas.classList.add('locked', 'just-locked');
         p.canvas.addEventListener('animationend', () => p.canvas.classList.remove('just-locked'), { once: true });
       } else {
-        const trayRect = this.tray.getBoundingClientRect();
         this.tray.appendChild(p.canvas);
-        p.canvas.style.position = 'absolute';
-        const cw = this.pw + 2 * this.pad;
-        const ch = this.ph + 2 * this.pad;
-        let left = e.clientX - this._offsetX - trayRect.left;
-        let top = e.clientY - this._offsetY - trayRect.top;
-        left = Math.max(0, Math.min(left, this.tray.clientWidth - cw));
-        top = Math.max(0, Math.min(top, Math.max(this.tray.clientHeight, this.tray.scrollHeight) - ch));
+        p.canvas.style.position = 'fixed';
+        p.rot = (Math.random() - 0.5) * 16;
+        const { left, top } = this._clampToViewport(e.clientX - this._offsetX, e.clientY - this._offsetY, p.rot);
         p.canvas.style.left = left + 'px';
         p.canvas.style.top = top + 'px';
         p.canvas.style.zIndex = 1;
-        p.rot = (Math.random() - 0.5) * 16;
         p.canvas.style.transition = 'transform 0.35s cubic-bezier(.34,1.56,.64,1)';
         p.canvas.style.transform = `rotate(${p.rot}deg)`;
         p.canvas.addEventListener('transitionend', () => { p.canvas.style.transition = ''; }, { once: true });

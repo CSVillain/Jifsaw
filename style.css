@@ -348,7 +348,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 .loading-text { margin: 0; color: var(--text-dim); font-weight: 500; }
 
 /* ---------- game ---------- */
-.game { max-width: 960px; margin: 0 auto; animation: fadeUp 0.4s ease both; }
+.game { max-width: 960px; margin: 0 auto; padding: 0 16px; animation: fadeUp 0.4s ease both; }
 .game-toolbar {
   display: flex;
   align-items: center;
@@ -378,6 +378,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 }
 
 .progress-wrap {
+  width: 100%;
   max-width: 480px;
   margin: 0 auto 28px;
   display: flex;
@@ -418,15 +419,17 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 #board.show-hint { outline: 3px solid var(--success); outline-offset: 2px; }
 
 #tray {
-  position: relative;
-  width: min(1100px, calc(100vw - 32px));
-  min-height: 200px;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
 }
 
 .piece {
   position: absolute;
   cursor: grab;
   touch-action: none;
+  pointer-events: auto;
   transition: filter 0.2s ease;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.3));
 }
@@ -520,4 +523,6 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   .diff-readout { display: none; }
   .theme-stage { width: 180px; height: 130px; }
   .theme-caption { display: none; }
+  .game-toolbar { gap: 8px; }
+  .timer-badge { padding: 8px 12px; }
 }
