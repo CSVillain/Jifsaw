@@ -1,0 +1,12 @@
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/*
+!.vscode/settings.json
+
+# Local tooling (Claude Code skills, Playwright CLI debug output)
+.claude/skills/
+.playwright-cli/
