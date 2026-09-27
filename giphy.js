@@ -1,38 +1,52 @@
-// Thin wrapper around the Giphy API. Falls back to Giphy's public beta key
-// (rate-limited, no signup) so the app works out of the box; a user-supplied
-// key is preferred when saved.
+// GIF source for Gifsaw. Two modes, switched by USE_LIVE_API below:
+//
+//  - STATIC (default): picks from gifs.json, a curated pool baked into the
+//    repo ahead of time (see scripts/refresh-gifs.md). No API key ships to
+//    the browser, no backend needed — works as-is on GitHub Pages.
+//  - LIVE: calls Giphy's search/trending/random endpoints through a
+//    server-side proxy you host (see scripts/refresh-gifs.md for the full
+//    switch-over steps). Never point this at Giphy directly with an
+//    embedded key — that ships the secret to every visitor's browser.
+//
 const Giphy = (() => {
-  const PUBLIC_BETA_KEY = 'dc6zaTOxFJmzC';
-  const BASE = 'https://api.giphy.com/v1/gifs';
+  const USE_LIVE_API = false;
 
-  function apiKey() {
-    return localStorage.getItem('gifsaw_giphy_key') || PUBLIC_BETA_KEY;
-  }
+  // Only used when USE_LIVE_API is true. This must be YOUR OWN proxy
+  // endpoint (Netlify Function, Cloudflare Worker, etc.) that holds the
+  // real Giphy key server-side — never a direct api.giphy.com call with a
+  // key in the URL. See scripts/refresh-gifs.md.
+  const PROXY_BASE = '/api/giphy';
 
-  function saveKey(key) {
-    if (key && key.trim()) {
-      localStorage.setItem('gifsaw_giphy_key', key.trim());
-    } else {
-      localStorage.removeItem('gifsaw_giphy_key');
+  const STATIC_POOL_URL = 'gifs.json';
+  let staticPoolPromise = null;
+
+  function loadStaticPool() {
+    if (!staticPoolPromise) {
+      staticPoolPromise = fetch(STATIC_POOL_URL)
+        .then(res => {
+          if (!res.ok) throw new Error(`Couldn't load gifs.json (${res.status})`);
+          return res.json();
+        })
+        .catch(err => {
+          staticPoolPromise = null; // allow retry on next call
+          throw new Error(`GIF library failed to load: ${err.message}`);
+        });
     }
+    return staticPoolPromise;
   }
 
-  function usingOwnKey() {
-    return !!localStorage.getItem('gifsaw_giphy_key');
+  function pickRandom(list) {
+    if (!list || !list.length) throw new Error('No GIFs available in that category.');
+    return list[Math.floor(Math.random() * list.length)];
   }
 
   async function request(path, params) {
-    const url = new URL(`${BASE}/${path}`);
-    url.searchParams.set('api_key', apiKey());
+    const url = new URL(path, window.location.origin + PROXY_BASE + '/');
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     const res = await fetch(url);
     const data = await res.json();
     if (!res.ok || data.meta?.status >= 400) {
-      if (data.meta?.msg === 'BANNED' || res.status === 403) {
-        throw new Error("The shared demo key is currently blocked by Giphy. Add your own free key below (developers.giphy.com, instant approval) to search.");
-      }
-      if (res.status === 429) throw new Error('Giphy rate limit hit — try again shortly, or add your own free API key below.');
-      throw new Error(`Giphy request failed (${res.status})`);
+      throw new Error(`Giphy proxy request failed (${res.status})`);
     }
     return data.data;
   }
@@ -54,40 +68,50 @@ const Giphy = (() => {
     };
   }
 
-  async function search(query, limit = 12) {
-    const items = await request('search', { q: query, limit, rating: 'g' });
-    return items.map(toPuzzleGif).filter(g => g.mp4 || g.still);
-  }
-
-  async function random() {
-    const item = await request('random', { rating: 'g' });
-    return toPuzzleGif(item);
-  }
-
-  async function trending(limit = 12) {
-    const items = await request('trending', { limit, rating: 'g' });
-    return items.map(toPuzzleGif).filter(g => g.mp4 || g.still);
-  }
-
-  // "Classic" theme: no curated Giphy category fits, so we pick a random
-  // well-known/evergreen search term and grab a random result from it.
   const CLASSIC_TERMS = [
     'mic drop', 'thumbs up', 'clapping', 'facepalm', 'eye roll', 'applause',
     'dance party', 'high five', 'mind blown', 'slow clap', 'fist bump', 'shrug',
   ];
 
+  async function search(query, limit = 12) {
+    if (!USE_LIVE_API) throw new Error('Live search is disabled — using the static GIF pool (see giphy.js).');
+    const items = await request('search', { q: query, limit, rating: 'g' });
+    return items.map(toPuzzleGif).filter(g => g.mp4 || g.still);
+  }
+
+  async function trending(limit = 12) {
+    if (!USE_LIVE_API) throw new Error('Live trending is disabled — using the static GIF pool (see giphy.js).');
+    const items = await request('trending', { limit, rating: 'g' });
+    return items.map(toPuzzleGif).filter(g => g.mp4 || g.still);
+  }
+
+  async function random() {
+    if (USE_LIVE_API) {
+      const item = await request('random', { rating: 'g' });
+      return toPuzzleGif(item);
+    }
+    const pool = await loadStaticPool();
+    return pickRandom([...pool.trending, ...pool.classic]);
+  }
+
   async function classicPick() {
-    const term = CLASSIC_TERMS[Math.floor(Math.random() * CLASSIC_TERMS.length)];
-    const gifs = await search(term, 25);
-    if (!gifs.length) throw new Error('No classic GIFs found — try again.');
-    return gifs[Math.floor(Math.random() * gifs.length)];
+    if (USE_LIVE_API) {
+      const term = CLASSIC_TERMS[Math.floor(Math.random() * CLASSIC_TERMS.length)];
+      const gifs = await search(term, 25);
+      return pickRandom(gifs);
+    }
+    const pool = await loadStaticPool();
+    return pickRandom(pool.classic);
   }
 
   async function trendingPick() {
-    const gifs = await trending(25);
-    if (!gifs.length) throw new Error('No trending GIFs found — try again.');
-    return gifs[Math.floor(Math.random() * gifs.length)];
+    if (USE_LIVE_API) {
+      const gifs = await trending(25);
+      return pickRandom(gifs);
+    }
+    const pool = await loadStaticPool();
+    return pickRandom(pool.trending);
   }
 
-  return { search, random, trending, classicPick, trendingPick, saveKey, usingOwnKey };
+  return { search, random, trending, classicPick, trendingPick };
 })();

@@ -109,7 +109,7 @@ const Puzzle = (() => {
 
     destroy() {
       cancelAnimationFrame(this._raf);
-      this._hidePileHint();
+      clearTimeout(this._dealTimer);
       window.removeEventListener('pointermove', this._boundMove);
       window.removeEventListener('pointerup', this._boundUp);
     }
@@ -119,82 +119,110 @@ const Puzzle = (() => {
       this.board.classList.toggle('show-hint', on);
     }
 
-    // Scatters unlocked pieces to random spots in the tray, animated. Used
-    // both to break up the initial pile (first interaction) and by the
-    // Shuffle button afterwards.
+    // Deals unlocked pieces out across the tray: a jittered grid with shuffled
+    // slots so pieces spread evenly without overlapping, each with a loose
+    // tabletop rotation. Used for the opening deal and by the Shuffle button.
     shuffle() {
+      clearTimeout(this._dealTimer);
       const wasPiled = !this.scattered;
       this.scattered = true;
-      if (wasPiled) this._hidePileHint();
 
-      const cw = this.pw + 2 * this.pad;
-      const ch = this.ph + 2 * this.pad;
-      const maxX = Math.max(0, this.tray.clientWidth - cw);
-      const trayH = Math.max(this.tray.clientHeight, this.tray.scrollHeight);
-      const maxY = Math.max(0, trayH - ch);
+      const list = this.pieces.filter(p => !p.locked);
+      const targets = this._spreadTargets(list.length);
+      const ease = 'cubic-bezier(.2,.9,.25,1.05)';
 
-      this.pieces.forEach(p => {
-        if (p.locked) return;
+      list.forEach((p, i) => {
+        const t = targets[i];
         this.tray.appendChild(p.canvas);
         p.canvas.classList.remove('piled');
         p.canvas.style.position = 'absolute';
         p.canvas.style.zIndex = 1;
-        const delay = wasPiled ? Math.random() * 220 : 0;
+        const delay = wasPiled ? i * 45 + Math.random() * 60 : Math.random() * 80;
         p.canvas.style.transition =
-          `left 0.5s cubic-bezier(.22,1.4,.36,1) ${delay}ms, ` +
-          `top 0.5s cubic-bezier(.22,1.4,.36,1) ${delay}ms, ` +
-          `transform 0.4s ease ${delay}ms`;
-        const left = Math.random() * maxX;
-        const top = Math.random() * maxY;
+          `left 0.7s ${ease} ${delay}ms, top 0.7s ${ease} ${delay}ms, transform 0.7s ${ease} ${delay}ms`;
+        p.rot = t.rot;
         requestAnimationFrame(() => {
-          p.canvas.style.left = left + 'px';
-          p.canvas.style.top = top + 'px';
-          p.canvas.style.transform = 'rotate(0deg)';
+          p.canvas.style.left = t.left + 'px';
+          p.canvas.style.top = t.top + 'px';
+          p.canvas.style.transform = `rotate(${t.rot}deg)`;
         });
         p.canvas.addEventListener('transitionend', () => { p.canvas.style.transition = ''; }, { once: true });
       });
     }
 
-    // Initial "face-down deck" look: pieces stacked near the tray's center
-    // with a slight random offset/rotation, waiting for the player to tap
-    // the pile (or hit Shuffle) to scatter them.
+    // Sizes the tray to fit `n` pieces in a grid across its full width.
+    _trayGeometry(n) {
+      const fw = (this.pw + this.bump * 1.2) * 1.12;
+      const fh = (this.ph + this.bump * 1.2) * 1.12;
+      const W = this.tray.clientWidth;
+      const cols = Math.max(1, Math.min(n, Math.floor(W / fw)));
+      const rows = Math.max(1, Math.ceil(n / cols));
+      const margin = 12;
+      this.tray.style.height = (rows * fh + margin * 2) + 'px';
+      return { cols, rows, cellW: W / cols, cellH: fh, margin };
+    }
+
+    _spreadTargets(n) {
+      const g = this._trayGeometry(Math.max(1, n));
+      const cw = this.pw + 2 * this.pad;
+      const ch = this.ph + 2 * this.pad;
+      const slots = Array.from({ length: g.cols * g.rows }, (_, i) => i);
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return Array.from({ length: n }, (_, i) => {
+        const col = slots[i] % g.cols;
+        const row = Math.floor(slots[i] / g.cols);
+        const cx = (col + 0.5) * g.cellW + (Math.random() - 0.5) * g.cellW * 0.22;
+        const cy = g.margin + (row + 0.5) * g.cellH + (Math.random() - 0.5) * g.cellH * 0.18;
+        return { left: cx - cw / 2, top: cy - ch / 2, rot: (Math.random() - 0.5) * 36 };
+      });
+    }
+
+    // Opening moment: pieces land as a loose heap in the middle of the tray,
+    // then deal themselves out across it.
     _layoutPile() {
       const cw = this.pw + 2 * this.pad;
       const ch = this.ph + 2 * this.pad;
-      const trayW = Math.max(this.tray.clientWidth, cw);
-      const trayH = Math.max(this.tray.clientHeight, 220);
-      const cx = trayW / 2 - cw / 2;
-      const cy = trayH / 2 - ch / 2;
+      this._trayGeometry(this.pieces.length);
+      const cx = this.tray.clientWidth / 2 - cw / 2;
+      const cy = this.tray.clientHeight / 2 - ch / 2;
       this.pieces.forEach((p, i) => {
-        const dx = (Math.random() - 0.5) * 14;
-        const dy = (Math.random() - 0.5) * 14;
-        const rot = (Math.random() - 0.5) * 18;
+        p.rot = (Math.random() - 0.5) * 40;
         p.canvas.style.position = 'absolute';
         p.canvas.style.transition = 'none';
-        p.canvas.style.left = (cx + dx) + 'px';
-        p.canvas.style.top = (cy + dy) + 'px';
-        p.canvas.style.transform = `rotate(${rot}deg)`;
+        p.canvas.style.left = (cx + (Math.random() - 0.5) * 30) + 'px';
+        p.canvas.style.top = (cy + (Math.random() - 0.5) * 20) + 'px';
+        p.canvas.style.transform = `rotate(${p.rot}deg)`;
         p.canvas.style.zIndex = i + 1;
         p.canvas.classList.add('piled');
         this.tray.appendChild(p.canvas);
       });
-      this._showPileHint();
+      this._dealTimer = setTimeout(() => this.shuffle(), 450);
     }
 
-    _showPileHint() {
-      this._hidePileHint();
-      const hint = document.createElement('div');
-      hint.className = 'pile-hint';
-      hint.textContent = '👆 Tap the pile to scatter';
-      this.tray.appendChild(hint);
-      this._pileHint = hint;
-    }
-
-    _hidePileHint() {
-      if (this._pileHint) {
-        this._pileHint.remove();
-        this._pileHint = null;
+    // Finds the topmost unlocked piece whose actual jigsaw shape (not its
+    // transparent canvas padding) is under the pointer.
+    _pieceAt(clientX, clientY) {
+      const cw = this.pw + 2 * this.pad;
+      const ch = this.ph + 2 * this.pad;
+      for (const el of document.elementsFromPoint(clientX, clientY)) {
+        const p = this._byCanvas.get(el);
+        if (!p || p.locked) continue;
+        const r = el.getBoundingClientRect();
+        const a = -(p.rot || 0) * Math.PI / 180;
+        const dx = clientX - (r.left + r.width / 2);
+        const dy = clientY - (r.top + r.height / 2);
+        const lx = dx * Math.cos(a) - dy * Math.sin(a) + cw / 2;
+        const ly = dx * Math.sin(a) + dy * Math.cos(a) + ch / 2;
+        p.ctx.save();
+        p.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const hit = p.ctx.isPointInPath(p.path, lx, ly);
+        p.ctx.restore();
+        if (hit) return p;
       }
+      return null;
     }
 
     solvedCount() {
@@ -203,6 +231,7 @@ const Puzzle = (() => {
 
     _buildPieces() {
       const { vSign, hSign } = buildKnobs(this.rows, this.cols);
+      this._byCanvas = new Map();
       const cw = this.pw + 2 * this.pad;
       const ch = this.ph + 2 * this.pad;
       for (let r = 0; r < this.rows; r++) {
@@ -221,8 +250,10 @@ const Puzzle = (() => {
             // Canvas top-left when correctly placed on the board.
             home: { x: c * this.pw - this.pad, y: r * this.ph - this.pad },
             locked: false,
+            rot: 0,
           };
-          canvas.addEventListener('pointerdown', (e) => this._onPointerDown(e, piece));
+          canvas.addEventListener('pointerdown', (e) => this._onPointerDown(e));
+          this._byCanvas.set(canvas, piece);
           this.pieces.push(piece);
         }
       }
@@ -264,6 +295,17 @@ const Puzzle = (() => {
         this._fillCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       }
 
+      const d = this.dragging;
+      if (d) {
+        this._vx *= 0.85;
+        this._vy *= 0.85;
+        d.dispRot *= 0.8;
+        const tiltY = Math.max(-16, Math.min(16, this._vx * 1.2));
+        const tiltX = Math.max(-16, Math.min(16, -this._vy * 1.2));
+        d.canvas.style.transform =
+          `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) rotate(${d.dispRot}deg) scale(1.06)`;
+      }
+
       this.pieces.forEach(p => {
         p.ctx.setTransform(1, 0, 0, 1, 0, 0);
         p.ctx.clearRect(0, 0, p.canvas.width, p.canvas.height);
@@ -271,10 +313,11 @@ const Puzzle = (() => {
         p.ctx.save();
         p.ctx.clip(p.path);
         p.ctx.drawImage(this._backCanvas, -p.home.x, -p.home.y);
+        if (!p.locked) this._shade(p);
         p.ctx.restore();
         if (!p.locked) {
-          p.ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-          p.ctx.lineWidth = 1;
+          p.ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+          p.ctx.lineWidth = 0.75;
           p.ctx.stroke(p.path);
         }
         if (this.hintOn && !p.locked) {
@@ -289,25 +332,102 @@ const Puzzle = (() => {
       this._raf = requestAnimationFrame(() => this._render());
     }
 
-    _onPointerDown(e, piece) {
-      if (piece.locked) return;
+    // Light comes from the upper left of the screen. Each piece's bevel,
+    // body shading and specular highlight are computed in the piece's own
+    // rotated frame so the light stays consistent as pieces turn, and the
+    // highlight slides against the direction of travel while dragging.
+    _shade(p) {
+      const ctx = p.ctx;
+      const cw = this.pw + 2 * this.pad;
+      const ch = this.ph + 2 * this.pad;
+      const isDrag = this.dragging === p;
+      const a = -((isDrag ? p.dispRot : p.rot) || 0) * Math.PI / 180;
+      const Lx = -0.45, Ly = -0.89;
+      const lx = Lx * Math.cos(a) - Ly * Math.sin(a);
+      const ly = Lx * Math.sin(a) + Ly * Math.cos(a);
+      const cx = this.pad + this.pw / 2;
+      const cy = this.pad + this.ph / 2;
+      const size = Math.min(this.pw, this.ph);
+
+      const body = ctx.createLinearGradient(
+        cx + lx * size * 0.6, cy + ly * size * 0.6,
+        cx - lx * size * 0.6, cy - ly * size * 0.6);
+      body.addColorStop(0, 'rgba(255,255,255,0.10)');
+      body.addColorStop(0.5, 'rgba(255,255,255,0)');
+      body.addColorStop(1, 'rgba(0,0,0,0.22)');
+      ctx.fillStyle = body;
+      ctx.fillRect(0, 0, cw, ch);
+
+      let ox = 0, oy = 0;
+      if (isDrag) {
+        const lim = size * 0.3;
+        ox = Math.max(-lim, Math.min(lim, -this._vx * 2));
+        oy = Math.max(-lim, Math.min(lim, -this._vy * 2));
+      }
+      const hx = cx + lx * size * 0.28 + ox;
+      const hy = cy + ly * size * 0.28 + oy;
+      const alpha = isDrag ? 0.32 : 0.18;
+      const spec = ctx.createRadialGradient(hx, hy, 0, hx, hy, size * (isDrag ? 0.75 : 0.6));
+      spec.addColorStop(0, `rgba(255,255,255,${alpha})`);
+      spec.addColorStop(0.4, `rgba(255,255,255,${alpha * 0.35})`);
+      spec.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = spec;
+      ctx.fillRect(0, 0, cw, ch);
+
+      // Bevel: the outline stroked slightly offset inside the clip, light on
+      // the edges facing the light and dark on the edges facing away.
+      const bw = Math.max(1.5, size * 0.03);
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = bw * 2;
+      ctx.save();
+      ctx.translate(-lx * bw, -ly * bw);
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.stroke(p.path);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(lx * bw, ly * bw);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.stroke(p.path);
+      ctx.restore();
+    }
+
+    _onPointerDown(e) {
       if (!this.scattered) {
         this.shuffle();
         return;
       }
+      const piece = this._pieceAt(e.clientX, e.clientY);
+      if (!piece) return;
+      e.preventDefault();
       this.dragging = piece;
       piece.canvas.setPointerCapture(e.pointerId);
       const rect = piece.canvas.getBoundingClientRect();
-      this._offsetX = e.clientX - rect.left;
-      this._offsetY = e.clientY - rect.top;
+      const cw = this.pw + 2 * this.pad;
+      const ch = this.ph + 2 * this.pad;
+      // Offset from the unrotated box, so the piece doesn't jump as it
+      // straightens out in the hand.
+      this._offsetX = e.clientX - (rect.left + rect.width / 2 - cw / 2);
+      this._offsetY = e.clientY - (rect.top + rect.height / 2 - ch / 2);
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+      this._vx = 0;
+      this._vy = 0;
+      piece.dispRot = piece.rot || 0;
       document.body.appendChild(piece.canvas);
+      piece.canvas.style.transition = 'none';
       piece.canvas.style.position = 'fixed';
+      piece.canvas.style.left = (e.clientX - this._offsetX) + 'px';
+      piece.canvas.style.top = (e.clientY - this._offsetY) + 'px';
       piece.canvas.style.zIndex = 1000;
       piece.canvas.classList.add('dragging');
     }
 
     _onPointerMove(e) {
       if (!this.dragging) return;
+      this._vx = this._vx * 0.6 + (e.clientX - this._lastX) * 0.4;
+      this._vy = this._vy * 0.6 + (e.clientY - this._lastY) * 0.4;
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
       this.dragging.canvas.style.left = (e.clientX - this._offsetX) + 'px';
       this.dragging.canvas.style.top = (e.clientY - this._offsetY) + 'px';
     }
@@ -327,6 +447,8 @@ const Puzzle = (() => {
         p.canvas.style.left = p.home.x + 'px';
         p.canvas.style.top = p.home.y + 'px';
         p.canvas.style.zIndex = 1;
+        p.canvas.style.transform = '';
+        p.rot = 0;
         p.locked = true;
         p.canvas.classList.add('locked', 'just-locked');
         p.canvas.addEventListener('animationend', () => p.canvas.classList.remove('just-locked'), { once: true });
@@ -343,6 +465,10 @@ const Puzzle = (() => {
         p.canvas.style.left = left + 'px';
         p.canvas.style.top = top + 'px';
         p.canvas.style.zIndex = 1;
+        p.rot = (Math.random() - 0.5) * 16;
+        p.canvas.style.transition = 'transform 0.35s cubic-bezier(.34,1.56,.64,1)';
+        p.canvas.style.transform = `rotate(${p.rot}deg)`;
+        p.canvas.addEventListener('transitionend', () => { p.canvas.style.transition = ''; }, { once: true });
       }
 
       const solved = this.pieces.every(pp => pp.locked);

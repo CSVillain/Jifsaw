@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gifsaw</title>
-<link rel="stylesheet" href="style.css">
+<title>Jifsaw</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true">
@@ -14,47 +17,58 @@
   </div>
 
   <header class="topbar">
-    <h1 class="logo"><span class="logo-emoji">🧩</span>Gifsaw</h1>
-    <p class="subtitle">Smash a GIF into pieces. Put it back together.</p>
+    <div class="wordmark">
+      <h1 class="logo">Jifsaw</h1>
+      <span class="logo-emoji">🧩</span>
+    </div>
   </header>
 
   <section id="setup" class="setup">
-    <div class="choice-group" id="difficultyGroup" data-value="4x3">
-      <span class="choice-label">Difficulty</span>
-      <div class="choice-row">
-        <button type="button" class="choice" data-value="3x3">
-          <span class="choice-icon">🟢</span><span class="choice-text">Easy</span>
-        </button>
-        <button type="button" class="choice selected" data-value="4x3">
-          <span class="choice-icon">🟡</span><span class="choice-text">Medium</span>
-        </button>
-        <button type="button" class="choice" data-value="5x4">
-          <span class="choice-icon">🔴</span><span class="choice-text">Hard</span>
-        </button>
-      </div>
-    </div>
-
     <div class="choice-group" id="themeGroup">
-      <span class="choice-label">Pick a GIF</span>
-      <div class="choice-row">
-        <button type="button" class="choice theme" data-value="classic">
-          <span class="choice-icon">🎬</span><span class="choice-text">Classic</span>
+      <span class="choice-label"></span>
+      <div class="theme-dial">
+        <button type="button" class="theme-arrow" id="themePrev" aria-label="Previous theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <button type="button" class="choice theme" data-value="trending">
-          <span class="choice-icon">🔥</span><span class="choice-text">Trending</span>
-        </button>
-        <button type="button" class="choice theme" data-value="random">
-          <span class="choice-icon">🎲</span><span class="choice-text">Random</span>
+        <div class="theme-stage" id="themeStage" role="button" tabindex="0" aria-label="Tap to start with the shown theme, arrow keys to browse">
+          <div class="theme-face is-active" data-value="classic">
+            <span class="theme-icon">🏆</span>
+            <span class="theme-name">Classic</span>
+            <span class="theme-hint">The OGs</span>
+          </div>
+          <div class="theme-face" data-value="trending">
+            <span class="theme-icon">🔥</span>
+            <span class="theme-name">Trending</span>
+            <span class="theme-hint">Hot sh*t</span>
+          </div>
+          <div class="theme-face" data-value="random">
+            <span class="theme-icon">🔮</span>
+            <span class="theme-name">Random</span>
+            <span class="theme-hint">Gif it a go</span>
+          </div>
+        </div>
+        <button type="button" class="theme-arrow" id="themeNext" aria-label="Next theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
     </div>
 
-    <details class="api-key-row">
-      <summary>Giphy API key (required — free, instant at developers.giphy.com)</summary>
-      <input id="apiKeyInput" type="text" placeholder="Paste your Giphy API key">
-      <button type="button" id="saveKeyBtn">Save key</button>
-      <span id="keyStatus"></span>
-    </details>
+    <div class="choice-group" id="difficultyGroup" data-value="3x3">
+      <div class="diff-slider">
+        <div class="diff-track" id="diffTrack">
+          <div class="diff-fill" id="diffFill"></div>
+          <button type="button" class="diff-handle" id="diffHandle" role="slider"
+            aria-label="Puzzle difficulty" aria-valuemin="0" aria-valuemax="2" aria-valuenow="0"
+            aria-valuetext="Easy, 9 pieces" tabindex="0"></button>
+        </div>
+        <div class="diff-ticks">
+          <button type="button" class="diff-tick-label active" data-value="3x3" data-pct="0">Easy</button>
+          <button type="button" class="diff-tick-label" data-value="4x3" data-pct="50">Medium</button>
+          <button type="button" class="diff-tick-label" data-value="5x4" data-pct="100">Hard</button>
+        </div>
+      </div>
+    </div>
+
     <p id="searchStatus" class="status"></p>
   </section>
 
@@ -102,7 +116,11 @@
 
   <script src="giphy.js"></script>
   <script src="confetti.js"></script>
-  <script src="puzzle.js"></script>
-  <script src="app.js"></script>
+  <script src="puzzle.js?v=5"></script>
+  <script src="app.js?v=5"></script>
+
+  <footer class="site-footer">
+    <p><a href="https://gtbr.co.uk/" target="_blank" rel="noopener">GTBR</a> side-quest 🪿</p> 
+  </footer>
 </body>
 </html>
