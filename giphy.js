@@ -1,4 +1,4 @@
-// GIF source for Gifsaw. Two modes, switched by USE_LIVE_API below:
+// GIF source for Jifsaw. Two modes, switched by USE_LIVE_API below:
 //
 //  - STATIC (default): picks from gifs.json, a curated pool baked into the
 //    repo ahead of time (see scripts/refresh-gifs.md). No API key ships to

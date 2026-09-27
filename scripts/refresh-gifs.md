@@ -1,6 +1,6 @@
 # GIF pool: refreshing and switching to live search
 
-Gifsaw ships in **static mode**: `gifs.json` is a curated pool of GIFs
+Jifsaw ships in **static mode**: `gifs.json` is a curated pool of GIFs
 (trending + a set of "classic" reaction terms) fetched once from Giphy and
 baked into the repo. No API key is shipped to the browser, no backend is
 required, and it works as-is on GitHub Pages or any static host.
