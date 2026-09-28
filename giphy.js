@@ -12,10 +12,11 @@ const Giphy = (() => {
   const USE_LIVE_API = false;
 
   // Only used when USE_LIVE_API is true. This must be YOUR OWN proxy
-  // endpoint (Netlify Function, Cloudflare Worker, etc.) that holds the
+  // endpoint (Cloudflare Worker, Netlify Function, etc.) that holds the
   // real Giphy key server-side — never a direct api.giphy.com call with a
-  // key in the URL. See scripts/refresh-gifs.md.
-  const PROXY_BASE = '/api/giphy';
+  // key in the URL. A Worker deploys to its own origin, so this is a full
+  // URL, not a same-origin path. See scripts/refresh-gifs.md.
+  const PROXY_BASE = 'https://jifsaw-giphy-proxy.YOUR-SUBDOMAIN.workers.dev';
 
   const STATIC_POOL_URL = 'gifs.json';
   let staticPoolPromise = null;
@@ -41,7 +42,7 @@ const Giphy = (() => {
   }
 
   async function request(path, params) {
-    const url = new URL(path, window.location.origin + PROXY_BASE + '/');
+    const url = new URL(path, PROXY_BASE + '/');
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     const res = await fetch(url);
     const data = await res.json();

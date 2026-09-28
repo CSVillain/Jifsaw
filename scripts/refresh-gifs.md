@@ -17,10 +17,12 @@ regenerate it:
    if you don't already have one.
 2. Run the build script **locally** — never commit the key, never put it in
    a file that gets pushed:
+
    ```powershell
    $env:GIPHY_BUILD_KEY = "your-key-here"
    pwsh scripts/build_gifs.ps1
    ```
+
    This overwrites `gifs.json` in the repo root with a fresh pool (50
    trending + ~70 classic-term results).
 3. Review the diff, commit `gifs.json`, and push/deploy as normal.
@@ -36,19 +38,46 @@ do this — it's just swapping which static file ships.
 If you want true live search/trending/random instead of a fixed pool, the
 key must never be embedded in the shipped JS or called directly from the
 browser as `api.giphy.com?api_key=...` — that exposes it to every visitor.
-Instead, put a thin server-side proxy in front of Giphy:
+Instead, put a thin server-side proxy in front of Giphy. Two options below;
+pick one.
 
-1. **Pick a proxy host.** Easiest options, both free tier:
-   - **Netlify Functions** — if you move hosting to Netlify (it serves the
-     static site *and* functions from one deploy, connected to this GitHub
-     repo).
-   - **Cloudflare Worker** — keeps the static site on GitHub Pages, adds a
-     separate free Worker just for the proxy endpoint.
+### Option A: Cloudflare Worker (recommended — keeps GitHub Pages as-is)
 
-2. **Write the proxy.** It takes the incoming request, adds the real key
-   server-side (from an encrypted environment variable in Netlify/Cloudflare
-   settings, never in the repo), forwards to Giphy, and returns the JSON.
-   Example (Netlify Function, `netlify/functions/giphy.js`):
+The site stays exactly where it is; you add one small, free Worker purely
+for the proxy endpoint. The Worker source is already in this repo at
+[`worker/giphy-proxy.js`](../worker/giphy-proxy.js).
+
+1. **Get a free Giphy API key** at [developers.giphy.com](https://developers.giphy.com)
+   if you don't already have one.
+2. **Create a Cloudflare account** (free tier) at [dash.cloudflare.com](https://dash.cloudflare.com)
+   if you don't have one, then go to **Workers & Pages → Create → Create Worker**.
+3. **Name it** (e.g. `jifsaw-giphy-proxy`) and deploy the default placeholder —
+   you'll replace the code next.
+4. **Paste in the proxy code**: open the new Worker → **Edit code**, replace
+   everything with the contents of this repo's `worker/giphy-proxy.js`, then
+   **Deploy**.
+5. **Set the key as a secret** (never in the source): Worker → **Settings →
+   Variables and Secrets → Add → Secret**, name it `GIPHY_API_KEY`, paste
+   your key, **Save and deploy**.
+6. **Copy the Worker's URL** — shown on the Worker's overview page, looks like
+   `https://jifsaw-giphy-proxy.<your-subdomain>.workers.dev`.
+7. **Point the app at it.** In `giphy.js`:
+   - Set `PROXY_BASE` to that exact URL (replacing the `YOUR-SUBDOMAIN`
+     placeholder already there)
+   - Set `USE_LIVE_API = true`
+8. If the site is ever hosted somewhere other than
+   `https://csvillain.github.io`, update `ALLOWED_ORIGIN` at the top of
+   `worker/giphy-proxy.js` to match, and redeploy the Worker — the CORS
+   check only allows requests from that exact origin.
+
+### Option B: Netlify Functions (if you move hosting to Netlify)
+
+Netlify serves the static site *and* a function from one deploy connected to
+this GitHub repo — simpler if you're open to moving off GitHub Pages.
+
+1. Get a free Giphy API key as above.
+2. Write the proxy as a Netlify Function, e.g. `netlify/functions/giphy.js`:
+
    ```js
    export default async (req) => {
      const url = new URL(req.url);
@@ -60,19 +89,17 @@ Instead, put a thin server-side proxy in front of Giphy:
      return new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json' } });
    };
    ```
-   Set `GIPHY_API_KEY` as an environment variable in the host's dashboard
-   (Netlify: Site settings → Environment variables; Cloudflare: Worker →
-   Settings → Variables → encrypt it).
 
-3. **Point the app at it.** In `giphy.js`:
-   - Set `USE_LIVE_API = true`
-   - Set `PROXY_BASE` to your proxy's path (e.g. `/api/giphy` if using
-     Netlify's redirect rules to map that path to the function, or the full
-     Worker URL if using Cloudflare)
+3. Set `GIPHY_API_KEY` as an environment variable in Netlify's dashboard
+   (Site settings → Environment variables).
+4. In `giphy.js`, set `PROXY_BASE = '/api/giphy'` (same-origin, since
+   Netlify serves both the site and the function) and `USE_LIVE_API = true`.
 
-4. **Verify** no key ever appears in a browser request — check the Network
-   tab; every outgoing request from the page should hit *your* domain, not
-   `api.giphy.com` directly.
+### Either way
+
+**Verify** no key ever appears in a browser request — check the Network tab;
+every outgoing request from the page should hit *your* proxy's domain, not
+`api.giphy.com` directly.
 
 Static mode and live mode aren't mutually exclusive long-term — you could
 keep static mode as the always-working fallback and only flip to live mode
