@@ -9,14 +9,14 @@
 //    embedded key — that ships the secret to every visitor's browser.
 //
 const Giphy = (() => {
-  const USE_LIVE_API = false;
+  const USE_LIVE_API = true;
 
   // Only used when USE_LIVE_API is true. This must be YOUR OWN proxy
   // endpoint (Cloudflare Worker, Netlify Function, etc.) that holds the
   // real Giphy key server-side — never a direct api.giphy.com call with a
   // key in the URL. A Worker deploys to its own origin, so this is a full
   // URL, not a same-origin path. See scripts/refresh-gifs.md.
-  const PROXY_BASE = 'https://jifsaw-giphy-proxy.YOUR-SUBDOMAIN.workers.dev';
+  const PROXY_BASE = 'https://jifsaw-giphy-proxy.cloudflare-spur038.workers.dev';
 
   const STATIC_POOL_URL = 'gifs.json';
   let staticPoolPromise = null;

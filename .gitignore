@@ -9,4 +9,6 @@ desktop.ini
 
 # Local tooling (Claude Code skills, Playwright CLI debug output)
 .claude/skills/
+.claude/settings.json
 .playwright-cli/
+.agents/
