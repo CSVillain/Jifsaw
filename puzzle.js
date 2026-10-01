@@ -416,10 +416,11 @@ const Puzzle = (() => {
       this._raf = requestAnimationFrame(() => this._render());
     }
 
-    // Light comes from the upper left of the screen. Each piece's bevel,
-    // body shading and specular highlight are computed in the piece's own
-    // rotated frame so the light stays consistent as pieces turn, and the
-    // highlight slides against the direction of travel while dragging.
+    // Light comes from the upper left of the screen. One soft radial sheen
+    // sweeps across the piece toward the light, and a single thin highlight
+    // traces just the edge facing the light — together they read as one
+    // consistent light source instead of competing effects. Both rotate
+    // with the piece and the sheen slides against the drag direction.
     _shade(p) {
       const ctx = p.ctx;
       const cw = this.pw + 2 * this.pad;
@@ -433,44 +434,36 @@ const Puzzle = (() => {
       const cy = this.pad + this.ph / 2;
       const size = Math.min(this.pw, this.ph);
 
-      const body = ctx.createLinearGradient(
-        cx + lx * size * 0.6, cy + ly * size * 0.6,
-        cx - lx * size * 0.6, cy - ly * size * 0.6);
-      body.addColorStop(0, 'rgba(255,255,255,0.10)');
-      body.addColorStop(0.5, 'rgba(255,255,255,0)');
-      body.addColorStop(1, 'rgba(0,0,0,0.22)');
-      ctx.fillStyle = body;
-      ctx.fillRect(0, 0, cw, ch);
-
       let ox = 0, oy = 0;
       if (isDrag) {
-        const lim = size * 0.3;
-        ox = Math.max(-lim, Math.min(lim, -this._vx * 2));
-        oy = Math.max(-lim, Math.min(lim, -this._vy * 2));
+        const lim = size * 0.25;
+        ox = Math.max(-lim, Math.min(lim, -this._vx * 1.5));
+        oy = Math.max(-lim, Math.min(lim, -this._vy * 1.5));
       }
-      const hx = cx + lx * size * 0.28 + ox;
-      const hy = cy + ly * size * 0.28 + oy;
-      const alpha = isDrag ? 0.32 : 0.18;
-      const spec = ctx.createRadialGradient(hx, hy, 0, hx, hy, size * (isDrag ? 0.75 : 0.6));
-      spec.addColorStop(0, `rgba(255,255,255,${alpha})`);
-      spec.addColorStop(0.4, `rgba(255,255,255,${alpha * 0.35})`);
-      spec.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = spec;
+      const hx = cx + lx * size * 0.35 + ox;
+      const hy = cy + ly * size * 0.35 + oy;
+      const peak = isDrag ? 0.16 : 0.1;
+      const sheen = ctx.createRadialGradient(hx, hy, 0, hx, hy, size * (isDrag ? 1.1 : 0.95));
+      sheen.addColorStop(0, `rgba(255,255,255,${peak})`);
+      sheen.addColorStop(0.6, `rgba(255,255,255,${peak * 0.25})`);
+      sheen.addColorStop(1, 'rgba(0,0,0,0.04)');
+      ctx.fillStyle = sheen;
       ctx.fillRect(0, 0, cw, ch);
 
-      // Bevel: the outline stroked slightly offset inside the clip, light on
-      // the edges facing the light and dark on the edges facing away.
-      const bw = Math.max(1.5, size * 0.03);
+      // Edge highlight: a single thin stroke, only bright on the side facing
+      // the light — clipped to the piece so it never spills a hard outline
+      // around the whole shape the way a full double-stroke bevel would.
+      ctx.save();
+      ctx.clip(p.path);
+      const edge = ctx.createLinearGradient(
+        cx + lx * size * 0.7, cy + ly * size * 0.7,
+        cx - lx * size * 0.7, cy - ly * size * 0.7);
+      edge.addColorStop(0, 'rgba(255,255,255,0.22)');
+      edge.addColorStop(0.35, 'rgba(255,255,255,0)');
+      edge.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = Math.max(1, size * 0.025);
       ctx.lineJoin = 'round';
-      ctx.lineWidth = bw * 2;
-      ctx.save();
-      ctx.translate(-lx * bw, -ly * bw);
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-      ctx.stroke(p.path);
-      ctx.restore();
-      ctx.save();
-      ctx.translate(lx * bw, ly * bw);
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
       ctx.stroke(p.path);
       ctx.restore();
     }
@@ -554,5 +547,12 @@ const Puzzle = (() => {
     }
   }
 
-  return { JigsawGame };
+  // buildKnobs/knobSegment/buildPiecePath are exported alongside JigsawGame
+  // only so the pure geometry math can be unit-tested directly — nothing in
+  // the runtime app calls them from outside this module.
+  return { JigsawGame, buildKnobs, knobSegment, buildPiecePath };
 })();
+
+// Inert in the browser (no bundler/module system is used there — this file
+// loads as a plain <script>); picked up by the test suite under Node/Vitest.
+if (typeof module !== 'undefined') module.exports = Puzzle;

@@ -111,6 +111,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 
 /* ---------- setup ---------- */
 .setup {
+  padding: 0 16px;
   animation: fadeUp 0.5s ease both;
 }
 @keyframes fadeUp {
@@ -218,7 +219,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   transition: color 0.2s ease;
 }
 
-.diff-slider { padding: 6px 2px 0; }
+.diff-slider { padding: 6px 14px 0; }
 .diff-track {
   position: relative;
   height: 14px;
@@ -410,10 +411,15 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 
 #board {
   position: relative;
-  background: repeating-conic-gradient(#241f38 0% 25%, #1a1730 0% 50%) 50% / 20px 20px;
-  border: 2px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  background:
+    radial-gradient(120% 140% at 30% 15%, rgba(139, 92, 246, 0.10), transparent 60%),
+    linear-gradient(160deg, #1a1730, #120f22 65%, #100d1e);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.3),
+    0 20px 60px rgba(0, 0, 0, 0.4);
   transition: box-shadow 0.3s ease;
 }
 #board.show-hint { outline: 3px solid var(--success); outline-offset: 2px; }
@@ -431,13 +437,13 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   touch-action: none;
   pointer-events: auto;
   transition: filter 0.2s ease;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.35));
 }
 .piece:hover {
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 10px 14px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 7px 12px rgba(0, 0, 0, 0.4));
 }
 .piece.dragging {
-  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35)) drop-shadow(0 24px 30px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.45));
   cursor: grabbing;
 }
 .piece.locked { cursor: default; filter: none; }
@@ -525,4 +531,10 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   .theme-caption { display: none; }
   .game-toolbar { gap: 8px; }
   .timer-badge { padding: 8px 12px; }
+}
+
+@media (max-width: 360px) {
+  .theme-dial { gap: 6px; }
+  .theme-arrow { width: 32px; height: 32px; }
+  .theme-stage { width: 152px; height: 122px; }
 }
