@@ -310,6 +310,15 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 .diff-tick-label:hover { color: var(--text); }
 .diff-tick-label.active { color: var(--text); }
 
+.best-time-label {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  min-height: 1.2em;
+  text-align: center;
+}
+.best-time-label strong { color: var(--accent-3); font-variant-numeric: tabular-nums; }
+
 /* ---------- loading overlay ---------- */
 .loading-overlay {
   position: fixed;
@@ -365,6 +374,8 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   color: #fff;
 }
 .tool-icon { font-size: 1.05rem; }
+.tool-btn.icon-only { padding: 10px 12px; gap: 0; }
+.tool-btn.icon-only .tool-icon { font-size: 1.15rem; }
 .timer-badge {
   display: inline-flex;
   align-items: center;
@@ -504,8 +515,10 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   background-clip: text;
   color: transparent;
 }
-.win-stats { color: var(--text-dim); margin: 0 0 18px; }
+.win-stats { color: var(--text-dim); margin: 0 0 4px; }
 .win-stats strong { color: var(--success); }
+.win-best { margin: 0 0 18px; font-size: 0.85rem; color: var(--text-dim); min-height: 1.2em; }
+.win-best.is-record { color: var(--accent-3); font-weight: 700; }
 .win-preview {
   width: 100%;
   border-radius: 16px;
