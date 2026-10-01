@@ -38,6 +38,16 @@ No build step, no install. Either:
   [`scripts/refresh-gifs.md`](scripts/refresh-gifs.md) for how to refresh
   that pool or switch to live search later.
 
+## Testing
+
+Requires Node.js. Install dev dependencies once with `npm install`, then:
+
+- `npm test` — unit tests (Vitest) for the pure logic in `puzzle.js` (piece
+  geometry) and `giphy.js` (the random-offset fix that stops repeated GIFs)
+- `npm run test:e2e` — Playwright smoke tests against a local static server:
+  mobile layout, theme/difficulty controls, full puzzle deal, and the
+  New-button reset — covers the real regressions found in earlier sessions
+
 ## Stack
 
 Vanilla HTML, CSS, and JavaScript. No framework, no bundler, no dependencies.

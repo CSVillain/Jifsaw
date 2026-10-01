@@ -74,15 +74,15 @@ const Giphy = (() => {
     'dance party', 'high five', 'mind blown', 'slow clap', 'fist bump', 'shrug',
   ];
 
-  async function search(query, limit = 12) {
+  async function search(query, limit = 12, offset = 0) {
     if (!USE_LIVE_API) throw new Error('Live search is disabled — using the static GIF pool (see giphy.js).');
-    const items = await request('search', { q: query, limit, rating: 'g' });
+    const items = await request('search', { q: query, limit, offset, rating: 'g' });
     return items.map(toPuzzleGif).filter(g => g.mp4 || g.still);
   }
 
-  async function trending(limit = 12) {
+  async function trending(limit = 12, offset = 0) {
     if (!USE_LIVE_API) throw new Error('Live trending is disabled — using the static GIF pool (see giphy.js).');
-    const items = await request('trending', { limit, rating: 'g' });
+    const items = await request('trending', { limit, offset, rating: 'g' });
     return items.map(toPuzzleGif).filter(g => g.mp4 || g.still);
   }
 
@@ -95,10 +95,15 @@ const Giphy = (() => {
     return pickRandom([...pool.trending, ...pool.classic]);
   }
 
+  // Giphy's search/trending results are stable for a given query+offset (not
+  // re-randomized per request), so always fetching from offset 0 would pick
+  // "randomly" from the same handful of candidates every time. Jumping to a
+  // random offset first draws from a much larger pool before picking.
   async function classicPick() {
     if (USE_LIVE_API) {
       const term = CLASSIC_TERMS[Math.floor(Math.random() * CLASSIC_TERMS.length)];
-      const gifs = await search(term, 25);
+      const offset = Math.floor(Math.random() * 200);
+      const gifs = await search(term, 25, offset);
       return pickRandom(gifs);
     }
     const pool = await loadStaticPool();
@@ -107,7 +112,8 @@ const Giphy = (() => {
 
   async function trendingPick() {
     if (USE_LIVE_API) {
-      const gifs = await trending(25);
+      const offset = Math.floor(Math.random() * 150);
+      const gifs = await trending(25, offset);
       return pickRandom(gifs);
     }
     const pool = await loadStaticPool();
@@ -116,3 +122,7 @@ const Giphy = (() => {
 
   return { search, random, trending, classicPick, trendingPick };
 })();
+
+// Inert in the browser (no bundler/module system is used there — this file
+// loads as a plain <script>); picked up by the test suite under Node/Vitest.
+if (typeof module !== 'undefined') module.exports = Giphy;

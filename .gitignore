@@ -12,3 +12,8 @@ desktop.ini
 .claude/settings.json
 .playwright-cli/
 .agents/
+
+# Test tooling
+node_modules/
+test-results/
+playwright-report/

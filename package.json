@@ -1,0 +1,17 @@
+{
+  "name": "jifsaw",
+  "private": true,
+  "version": "1.0.0",
+  "description": "GIF jigsaw puzzle game. No build step for the app itself — this package.json exists only to run its test suite.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "jsdom": "^25.0.0",
+    "vitest": "^2.1.0"
+  }
+}
