@@ -67,6 +67,7 @@
           <button type="button" class="diff-tick-label" data-value="5x4" data-pct="100">Hard</button>
         </div>
       </div>
+      <p class="best-time-label" id="setupBestTime"></p>
     </div>
 
     <p id="searchStatus" class="status"></p>
@@ -84,6 +85,7 @@
       <button id="shuffleBtn" type="button" class="tool-btn" title="Shuffle"><span class="tool-icon">🔀</span>Shuffle</button>
       <button id="hintBtn" type="button" class="tool-btn" title="Toggle hint"><span class="tool-icon">💡</span>Hint</button>
       <button id="newBtn" type="button" class="tool-btn" title="New puzzle"><span class="tool-icon">↺</span>New</button>
+      <button id="muteBtn" type="button" class="tool-btn icon-only" title="Mute sound" aria-pressed="false"><span class="tool-icon" id="muteIcon">🔊</span></button>
       <span class="timer-badge"><span class="tool-icon">⏱</span><span id="timer">00:00</span></span>
     </div>
 
@@ -110,6 +112,7 @@
       <div class="win-burst">🎉</div>
       <h2 class="win-title">Solved!</h2>
       <p class="win-stats">Time <strong id="winTime">00:00</strong> · <span id="winDifficulty">Medium</span></p>
+      <p class="win-best" id="winBest"></p>
       <div class="win-preview"><video id="winVideo" muted loop playsinline autoplay></video></div>
       <div class="win-actions">
         <button type="button" id="playAgainBtn" class="win-btn primary">🔁 Play Again</button>
@@ -122,8 +125,10 @@
 
   <script src="giphy.js?v=3"></script>
   <script src="confetti.js"></script>
-  <script src="puzzle.js?v=10"></script>
-  <script src="app.js?v=9"></script>
+  <script src="sound.js?v=2"></script>
+  <script src="storage.js"></script>
+  <script src="puzzle.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 
   <footer class="site-footer">
     <p><a href="https://gtbr.co.uk/" target="_blank" rel="noopener">GTBR</a> side-quest 🪿 · Powered by <a href="https://giphy.com/" target="_blank" rel="noopener">GIPHY</a></p>

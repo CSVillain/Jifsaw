@@ -21,13 +21,17 @@
   const shuffleBtn = document.getElementById('shuffleBtn');
   const hintBtn = document.getElementById('hintBtn');
   const newBtn = document.getElementById('newBtn');
+  const muteBtn = document.getElementById('muteBtn');
+  const muteIcon = document.getElementById('muteIcon');
   const timerEl = document.getElementById('timer');
   const videoEl = document.getElementById('src');
+  const setupBestTimeEl = document.getElementById('setupBestTime');
 
   const winOverlay = document.getElementById('winOverlay');
   const confettiCanvas = document.getElementById('confettiCanvas');
   const winTimeEl = document.getElementById('winTime');
   const winDifficultyEl = document.getElementById('winDifficulty');
+  const winBestEl = document.getElementById('winBest');
   const winVideo = document.getElementById('winVideo');
   const playAgainBtn = document.getElementById('playAgainBtn');
   const newThemeBtn = document.getElementById('newThemeBtn');
@@ -39,6 +43,38 @@
   // can't force horizontal scrolling on small screens.
   function boardWidth() {
     return Math.min(BOARD_W_MAX, window.innerWidth - 32);
+  }
+
+  function formatTime(seconds) {
+    const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+    const s = String(seconds % 60).padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  // Mute state persists across sessions via the same localStorage wrapper
+  // used for best times. The initial Sound.setMuted() call below runs at
+  // page load (not a user gesture) and only stores the preference — the
+  // actual AudioContext is created lazily the first time a sound plays
+  // from inside a real interaction (piece lock, join, or win).
+  function applyMuteIcon(muted) {
+    muteIcon.textContent = muted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-pressed', String(muted));
+    muteBtn.title = muted ? 'Unmute sound' : 'Mute sound';
+  }
+  const storedMute = window.localStorage?.getItem('jifsaw:muted') === '1';
+  Sound.setMuted(storedMute);
+  applyMuteIcon(storedMute);
+  muteBtn.addEventListener('click', () => {
+    const next = !Sound.isMuted();
+    Sound.setMuted(next);
+    applyMuteIcon(next);
+    try { window.localStorage?.setItem('jifsaw:muted', next ? '1' : '0'); } catch {}
+  });
+
+  function updateSetupBestTime() {
+    const value = difficultyGroup.dataset.value;
+    const best = Storage.getBestTime(value);
+    setupBestTimeEl.textContent = best !== null ? `Best: ${formatTime(best)}` : '';
   }
 
   let currentGame = null;
@@ -116,6 +152,7 @@
     diffFill.classList.add('snapping');
     diffHandle.classList.add('snapping');
     diffApplyVisual(lv.pct);
+    updateSetupBestTime();
   }
 
   function diffTrackPct(clientX) {
@@ -299,12 +336,15 @@
       board, tray, source,
       rows, cols,
       width: boardW, height: boardH,
+      hardMode: difficultyGroup.dataset.value === '5x4',
       onProgress: (solved) => {
         const placed = currentGame.solvedCount();
         pieceCountEl.textContent = `${placed}/${total} placed`;
         progressFill.style.width = `${(placed / total) * 100}%`;
         if (solved) onSolved(gif);
       },
+      onLock: () => Sound.lock(),
+      onJoin: () => Sound.join(),
     });
     pieceCountEl.textContent = `0/${total} placed`;
     progressFill.style.width = '0%';
@@ -340,15 +380,24 @@
     timerInterval = null;
   }
   function updateTimerDisplay() {
-    const m = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
-    const s = String(elapsedSec % 60).padStart(2, '0');
-    timerEl.textContent = `${m}:${s}`;
+    timerEl.textContent = formatTime(elapsedSec);
   }
 
   function onSolved(gif) {
     stopTimer();
     winTimeEl.textContent = timerEl.textContent;
     winDifficultyEl.textContent = DIFFICULTY_LABELS[difficultyGroup.dataset.value] || '';
+
+    const difficultyValue = difficultyGroup.dataset.value;
+    const isNewBest = Storage.saveBestTimeIfBetter(difficultyValue, elapsedSec);
+    const best = Storage.getBestTime(difficultyValue);
+    winBestEl.classList.toggle('is-record', isNewBest);
+    winBestEl.textContent = isNewBest
+      ? 'New best time! 🎉'
+      : (best !== null ? `Best: ${formatTime(best)}` : '');
+    updateSetupBestTime();
+    Sound.win();
+
     if (gif.mp4) {
       winVideo.src = gif.mp4;
       winVideo.play().catch(() => {});

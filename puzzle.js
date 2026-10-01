@@ -56,6 +56,9 @@ const Puzzle = (() => {
      * @param {number} opts.width  board pixel width
      * @param {number} opts.height board pixel height
      * @param {(solved:boolean)=>void} opts.onProgress
+     * @param {()=>void} [opts.onLock] - fires when a piece/group locks onto the board
+     * @param {()=>void} [opts.onJoin] - fires when two pieces join off-board
+     * @param {boolean} [opts.hardMode] - enables gentle drift for unplaced pieces
      */
     constructor(opts) {
       Object.assign(this, opts);
@@ -417,6 +420,8 @@ const Puzzle = (() => {
           `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) rotate(${d.dispRot}deg) scale(1.06)`;
       }
 
+      if (this.hardMode) this._updateDrift();
+
       this.pieces.forEach(p => {
         p.ctx.setTransform(1, 0, 0, 1, 0, 0);
         p.ctx.clearRect(0, 0, p.canvas.width, p.canvas.height);
@@ -441,6 +446,49 @@ const Puzzle = (() => {
         }
       });
       this._raf = requestAnimationFrame(() => this._render());
+    }
+
+    // Hard-mode only: unplaced pieces gently wander instead of sitting
+    // still, so the player has to "catch" one as well as find it. Driven
+    // by one velocity per GROUP (not per piece) so a joined cluster drifts
+    // as a rigid unit — exactly how dragging a group already works. Each
+    // frame there's a small chance of picking a fresh random direction,
+    // which reads as idle wandering rather than a fixed orbit or bounce.
+    _updateDrift() {
+      if (!this.scattered) return;
+      const seen = new Set();
+      this.pieces.forEach(p => {
+        if (p.locked || p === this.dragging || seen.has(p.group)) return;
+        seen.add(p.group);
+        const anchor = p.group[0];
+
+        if (anchor.driftVx === undefined) {
+          anchor.driftVx = 0;
+          anchor.driftVy = 0;
+        }
+        if (Math.random() < 0.01) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 0.12 + Math.random() * 0.18;
+          anchor.driftVx = Math.cos(angle) * speed;
+          anchor.driftVy = Math.sin(angle) * speed;
+        }
+
+        const cw = this.pw + 2 * this.pad, ch = this.ph + 2 * this.pad;
+        const left = (parseFloat(anchor.canvas.style.left) || 0) + anchor.driftVx;
+        const top = (parseFloat(anchor.canvas.style.top) || 0) + anchor.driftVy;
+        const { left: clampedLeft, top: clampedTop } = this._clampToViewport(left, top, anchor.rot);
+        // Bounce off the viewport edge instead of sticking to it, so a
+        // drifting piece doesn't just pile up against the boundary.
+        if (clampedLeft !== left) anchor.driftVx *= -1;
+        if (clampedTop !== top) anchor.driftVy *= -1;
+        const dLeft = clampedLeft - (parseFloat(anchor.canvas.style.left) || 0);
+        const dTop = clampedTop - (parseFloat(anchor.canvas.style.top) || 0);
+
+        p.group.forEach(gp => {
+          gp.canvas.style.left = ((parseFloat(gp.canvas.style.left) || 0) + dLeft) + 'px';
+          gp.canvas.style.top = ((parseFloat(gp.canvas.style.top) || 0) + dTop) + 'px';
+        });
+      });
     }
 
     // Light comes from the upper left of the screen. One soft radial sheen
@@ -517,6 +565,10 @@ const Puzzle = (() => {
       this._vx = 0;
       this._vy = 0;
       piece.dispRot = piece.rot || 0;
+      // Stop any Hard-mode drift the instant a piece is grabbed — fighting
+      // the player's own drag would feel broken, not challenging.
+      piece.group[0].driftVx = 0;
+      piece.group[0].driftVy = 0;
       // The whole group the grabbed piece belongs to moves together: lift
       // every member to the front, keeping each one's own current position
       // and rotation (only the cluster's as a whole gets dragged, its
@@ -628,9 +680,11 @@ const Puzzle = (() => {
           gp.canvas.classList.add('locked', 'just-locked');
           gp.canvas.addEventListener('animationend', () => gp.canvas.classList.remove('just-locked'), { once: true });
         });
+        this.onLock?.();
       } else if (this._tryJoinOffBoard(p)) {
         // Joined another group off-board; _tryJoinOffBoard already moved
-        // and merged everything, nothing left to do here.
+        // and merged everything.
+        this.onJoin?.();
       } else {
         // A lone piece gets a fresh jaunty tabletop angle when it misses, as
         // before. A multi-piece group keeps every member's existing
