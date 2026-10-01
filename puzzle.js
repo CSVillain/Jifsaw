@@ -153,26 +153,48 @@ const Puzzle = (() => {
       const wasPiled = !this.scattered;
       this.scattered = true;
 
-      const list = this.pieces.filter(p => !p.locked);
-      const targets = this._spreadTargets(list.length);
+      // Scatter by GROUP, not by individual piece, so an off-board-joined
+      // cluster moves as one unit instead of being torn apart. Each group
+      // is represented by one anchor piece for slot-picking (its footprint
+      // is sized like a single piece — close enough for the small clusters
+      // joining realistically produces, and keeps the already-tuned
+      // viewport-packing math in _viewportSlots untouched).
+      const seen = new Set();
+      const groups = [];
+      this.pieces.forEach(p => {
+        if (p.locked || seen.has(p.group)) return;
+        seen.add(p.group);
+        groups.push(p.group);
+      });
+
+      const targets = this._spreadTargets(groups.length);
       const ease = 'cubic-bezier(.2,.9,.25,1.05)';
 
-      list.forEach((p, i) => {
+      groups.forEach((group, i) => {
         const t = targets[i];
-        this.tray.appendChild(p.canvas);
-        p.canvas.classList.remove('piled');
-        p.canvas.style.position = 'fixed';
-        p.canvas.style.zIndex = 1;
-        const delay = wasPiled ? i * 45 + Math.random() * 60 : Math.random() * 80;
-        p.canvas.style.transition =
-          `left 0.7s ${ease} ${delay}ms, top 0.7s ${ease} ${delay}ms, transform 0.7s ${ease} ${delay}ms`;
-        p.rot = t.rot;
-        requestAnimationFrame(() => {
-          p.canvas.style.left = t.left + 'px';
-          p.canvas.style.top = t.top + 'px';
-          p.canvas.style.transform = `rotate(${t.rot}deg)`;
+        const anchor = group[0];
+        const anchorLeft = parseFloat(anchor.canvas.style.left) || t.left;
+        const anchorTop = parseFloat(anchor.canvas.style.top) || t.top;
+        const dLeft = t.left - anchorLeft, dTop = t.top - anchorTop;
+        const dRot = t.rot - (anchor.rot || 0);
+        group.forEach((p, gi) => {
+          this.tray.appendChild(p.canvas);
+          p.canvas.classList.remove('piled');
+          p.canvas.style.position = 'fixed';
+          p.canvas.style.zIndex = 1;
+          const delay = wasPiled ? (i * group.length + gi) * 45 + Math.random() * 60 : Math.random() * 80;
+          p.canvas.style.transition =
+            `left 0.7s ${ease} ${delay}ms, top 0.7s ${ease} ${delay}ms, transform 0.7s ${ease} ${delay}ms`;
+          const left = (parseFloat(p.canvas.style.left) || 0) + dLeft;
+          const top = (parseFloat(p.canvas.style.top) || 0) + dTop;
+          p.rot = (p.rot || 0) + dRot;
+          requestAnimationFrame(() => {
+            p.canvas.style.left = left + 'px';
+            p.canvas.style.top = top + 'px';
+            p.canvas.style.transform = `rotate(${p.rot}deg)`;
+          });
+          p.canvas.addEventListener('transitionend', () => { p.canvas.style.transition = ''; }, { once: true });
         });
-        p.canvas.addEventListener('transitionend', () => { p.canvas.style.transition = ''; }, { once: true });
       });
     }
 
@@ -335,12 +357,17 @@ const Puzzle = (() => {
             home: { x: c * this.pw - this.pad, y: r * this.ph - this.pad },
             locked: false,
             rot: 0,
+            group: null, // set below once every piece exists
           };
           canvas.addEventListener('pointerdown', (e) => this._onPointerDown(e));
           this._byCanvas.set(canvas, piece);
           this.pieces.push(piece);
         }
       }
+      // Every piece starts in a "group" of just itself — joining two pieces
+      // off-board later just means pointing both pieces' `group` at one
+      // shared array, so dragging one moves every piece in that array.
+      this.pieces.forEach(p => { p.group = [p]; });
     }
 
     _render() {
@@ -490,56 +517,148 @@ const Puzzle = (() => {
       this._vx = 0;
       this._vy = 0;
       piece.dispRot = piece.rot || 0;
-      document.body.appendChild(piece.canvas);
-      piece.canvas.style.transition = 'none';
-      piece.canvas.style.position = 'fixed';
-      piece.canvas.style.left = (e.clientX - this._offsetX) + 'px';
-      piece.canvas.style.top = (e.clientY - this._offsetY) + 'px';
-      piece.canvas.style.zIndex = 1000;
-      piece.canvas.classList.add('dragging');
+      // The whole group the grabbed piece belongs to moves together: lift
+      // every member to the front, keeping each one's own current position
+      // and rotation (only the cluster's as a whole gets dragged, its
+      // internal shape never changes).
+      piece.group.forEach(gp => {
+        document.body.appendChild(gp.canvas);
+        gp.canvas.style.transition = 'none';
+        gp.canvas.style.position = 'fixed';
+        gp.canvas.style.zIndex = gp === piece ? 1000 : 999;
+      });
     }
 
     _onPointerMove(e) {
       if (!this.dragging) return;
       this._vx = this._vx * 0.6 + (e.clientX - this._lastX) * 0.4;
       this._vy = this._vy * 0.6 + (e.clientY - this._lastY) * 0.4;
+      const dx = e.clientX - this._lastX, dy = e.clientY - this._lastY;
       this._lastX = e.clientX;
       this._lastY = e.clientY;
-      this.dragging.canvas.style.left = (e.clientX - this._offsetX) + 'px';
-      this.dragging.canvas.style.top = (e.clientY - this._offsetY) + 'px';
+      this.dragging.group.forEach(gp => {
+        gp.canvas.style.left = (parseFloat(gp.canvas.style.left) || 0) + dx + 'px';
+        gp.canvas.style.top = (parseFloat(gp.canvas.style.top) || 0) + dy + 'px';
+      });
+    }
+
+    // Two pieces are candidates for an off-board join only if they're
+    // actual grid neighbors (so a match is only possible where the jigsaw
+    // cut really has a matching edge) and both are close enough to upright
+    // — matching rotated pieces isn't supported, so a loose/tumbled piece
+    // simply won't catch until it settles close to 0°.
+    _isUpright(rot) {
+      const norm = ((rot % 360) + 360) % 360; // 0..360
+      const centered = norm > 180 ? norm - 360 : norm; // -180..180
+      return Math.abs(centered) <= 6;
+    }
+
+    _isNeighbor(a, b) {
+      return (a.r === b.r && Math.abs(a.c - b.c) === 1) ||
+             (a.c === b.c && Math.abs(a.r - b.r) === 1);
+    }
+
+    // After a drag that didn't snap onto the board, see if the dragged
+    // group landed close enough to another upright group to join it. Join
+    // is a pure translation (no rotation blending needed, since both sides
+    // must already be upright) — the dragged group's pieces are nudged so
+    // the matched pair lines up exactly, then the two groups' piece arrays
+    // are merged into one shared array.
+    _tryJoinOffBoard(draggedPiece) {
+      const dragRect = draggedPiece.canvas.getBoundingClientRect();
+      const dragCx = dragRect.left + dragRect.width / 2;
+      const dragCy = dragRect.top + dragRect.height / 2;
+      if (!this._isUpright(draggedPiece.rot)) return false;
+
+      for (const other of this.pieces) {
+        if (other.locked || other.group === draggedPiece.group) continue;
+        if (!this._isNeighbor(draggedPiece, other) || !this._isUpright(other.rot)) continue;
+
+        const otherRect = other.canvas.getBoundingClientRect();
+        const otherCx = otherRect.left + otherRect.width / 2;
+        const otherCy = otherRect.top + otherRect.height / 2;
+        const wantDx = other.home.x - draggedPiece.home.x;
+        const wantDy = other.home.y - draggedPiece.home.y;
+        const actualDx = otherCx - dragCx, actualDy = otherCy - dragCy;
+
+        if (Math.hypot(actualDx - wantDx, actualDy - wantDy) < this.snapDist) {
+          // Shift every piece in the dragged group by the same correction so
+          // the whole cluster lands in perfect alignment, not just the one
+          // piece that happened to be checked.
+          const correctionX = (otherCx - wantDx) - dragCx;
+          const correctionY = (otherCy - wantDy) - dragCy;
+          draggedPiece.group.forEach(gp => {
+            const left = (parseFloat(gp.canvas.style.left) || 0) + correctionX;
+            const top = (parseFloat(gp.canvas.style.top) || 0) + correctionY;
+            gp.canvas.style.transition = 'left 0.15s ease, top 0.15s ease';
+            gp.canvas.style.left = left + 'px';
+            gp.canvas.style.top = top + 'px';
+            gp.canvas.addEventListener('transitionend', () => { gp.canvas.style.transition = ''; }, { once: true });
+          });
+          const merged = [...new Set([...draggedPiece.group, ...other.group])];
+          merged.forEach(gp => { gp.group = merged; });
+          return true;
+        }
+      }
+      return false;
     }
 
     _onPointerUp(e) {
       if (!this.dragging) return;
       const p = this.dragging;
       this.dragging = null;
-      p.canvas.classList.remove('dragging');
+      p.group.forEach(gp => gp.canvas.classList.remove('dragging'));
       const boardRect = this.board.getBoundingClientRect();
       const dropX = e.clientX - this._offsetX - boardRect.left;
       const dropY = e.clientY - this._offsetY - boardRect.top;
 
       if (Math.hypot(dropX - p.home.x, dropY - p.home.y) < this.snapDist) {
-        this.board.appendChild(p.canvas);
-        p.canvas.style.position = 'absolute';
-        p.canvas.style.left = p.home.x + 'px';
-        p.canvas.style.top = p.home.y + 'px';
-        p.canvas.style.zIndex = 1;
-        p.canvas.style.transform = '';
-        p.rot = 0;
-        p.locked = true;
-        p.canvas.classList.add('locked', 'just-locked');
-        p.canvas.addEventListener('animationend', () => p.canvas.classList.remove('just-locked'), { once: true });
+        // Whole group locks onto the board together, each piece to its own
+        // home — the group was already internally aligned, so this can
+        // never partially succeed for some members and not others.
+        p.group.forEach(gp => {
+          this.board.appendChild(gp.canvas);
+          gp.canvas.style.position = 'absolute';
+          gp.canvas.style.left = gp.home.x + 'px';
+          gp.canvas.style.top = gp.home.y + 'px';
+          gp.canvas.style.zIndex = 1;
+          gp.canvas.style.transform = '';
+          gp.rot = 0;
+          gp.locked = true;
+          gp.canvas.classList.add('locked', 'just-locked');
+          gp.canvas.addEventListener('animationend', () => gp.canvas.classList.remove('just-locked'), { once: true });
+        });
+      } else if (this._tryJoinOffBoard(p)) {
+        // Joined another group off-board; _tryJoinOffBoard already moved
+        // and merged everything, nothing left to do here.
       } else {
-        this.tray.appendChild(p.canvas);
-        p.canvas.style.position = 'fixed';
-        p.rot = (Math.random() - 0.5) * 16;
-        const { left, top } = this._clampToViewport(e.clientX - this._offsetX, e.clientY - this._offsetY, p.rot);
-        p.canvas.style.left = left + 'px';
-        p.canvas.style.top = top + 'px';
-        p.canvas.style.zIndex = 1;
-        p.canvas.style.transition = 'transform 0.35s cubic-bezier(.34,1.56,.64,1)';
-        p.canvas.style.transform = `rotate(${p.rot}deg)`;
-        p.canvas.addEventListener('transitionend', () => { p.canvas.style.transition = ''; }, { once: true });
+        // A lone piece gets a fresh jaunty tabletop angle when it misses, as
+        // before. A multi-piece group keeps every member's existing
+        // rotation fixed, since changing them independently would tear the
+        // cluster's aligned shape apart.
+        if (p.group.length === 1) {
+          p.rot = (Math.random() - 0.5) * 16;
+          p.canvas.style.transform = `rotate(${p.rot}deg)`;
+        }
+        // Clamp using the grabbed piece's own position, then apply that
+        // SAME correction to every member — clamping each piece to the
+        // viewport independently could tear a multi-piece cluster apart if
+        // it straddles an edge.
+        const anchorLeft = parseFloat(p.canvas.style.left) || 0;
+        const anchorTop = parseFloat(p.canvas.style.top) || 0;
+        const { left: clampedAnchorLeft, top: clampedAnchorTop } = this._clampToViewport(anchorLeft, anchorTop, p.rot);
+        const dLeft = clampedAnchorLeft - anchorLeft, dTop = clampedAnchorTop - anchorTop;
+        p.group.forEach(gp => {
+          this.tray.appendChild(gp.canvas);
+          gp.canvas.style.position = 'fixed';
+          const left = (parseFloat(gp.canvas.style.left) || 0) + dLeft;
+          const top = (parseFloat(gp.canvas.style.top) || 0) + dTop;
+          gp.canvas.style.transition = 'left 0.2s ease, top 0.2s ease, transform 0.2s ease';
+          gp.canvas.style.left = left + 'px';
+          gp.canvas.style.top = top + 'px';
+          gp.canvas.style.zIndex = 1;
+          gp.canvas.addEventListener('transitionend', () => { gp.canvas.style.transition = ''; }, { once: true });
+        });
       }
 
       const solved = this.pieces.every(pp => pp.locked);
