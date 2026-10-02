@@ -448,12 +448,12 @@ const Puzzle = (() => {
       this._raf = requestAnimationFrame(() => this._render());
     }
 
-    // Hard-mode only: unplaced pieces gently wander instead of sitting
-    // still, so the player has to "catch" one as well as find it. Driven
-    // by one velocity per GROUP (not per piece) so a joined cluster drifts
-    // as a rigid unit — exactly how dragging a group already works. Each
-    // frame there's a small chance of picking a fresh random direction,
-    // which reads as idle wandering rather than a fixed orbit or bounce.
+    // Hard-mode only: unplaced pieces actively wander — fast and erratic
+    // enough that tracking a specific piece takes real effort, not just a
+    // gentle idle sway. Driven by one velocity per GROUP (not per piece) so
+    // a joined cluster drifts as a rigid unit — exactly how dragging a
+    // group already works. Direction changes often, and occasionally darts
+    // sharply, so the motion reads as restless rather than a smooth orbit.
     _updateDrift() {
       if (!this.scattered) return;
       const seen = new Set();
@@ -466,9 +466,13 @@ const Puzzle = (() => {
           anchor.driftVx = 0;
           anchor.driftVy = 0;
         }
-        if (Math.random() < 0.01) {
+        // ~once a second a piece picks a new, usually sharply different
+        // heading; a smaller, rarer chance makes it dart at high speed, so
+        // the overall path never settles into something predictable.
+        if (Math.random() < 0.03) {
           const angle = Math.random() * Math.PI * 2;
-          const speed = 0.12 + Math.random() * 0.18;
+          const isDart = Math.random() < 0.25;
+          const speed = isDart ? 2.2 + Math.random() * 1.6 : 0.6 + Math.random() * 0.9;
           anchor.driftVx = Math.cos(angle) * speed;
           anchor.driftVy = Math.sin(angle) * speed;
         }
