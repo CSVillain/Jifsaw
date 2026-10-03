@@ -41,6 +41,20 @@ const Giphy = (() => {
     return list[Math.floor(Math.random() * list.length)];
   }
 
+  // Tracks every GIF id shown so far this session (resets on page reload —
+  // deliberately not persisted, so the pool of "fresh" picks never shrinks
+  // permanently). Picking prefers a GIF not seen yet; if every candidate in
+  // the current batch has already been shown (small pool, bad luck), it
+  // falls back to picking from the full batch rather than ever failing.
+  const shownIds = new Set();
+  function pickUnseen(list) {
+    if (!list || !list.length) throw new Error('No GIFs available in that category.');
+    const unseen = list.filter(g => !shownIds.has(g.id));
+    const pick = pickRandom(unseen.length ? unseen : list);
+    shownIds.add(pick.id);
+    return pick;
+  }
+
   async function request(path, params) {
     const url = new URL(path, PROXY_BASE + '/');
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -61,6 +75,11 @@ const Giphy = (() => {
     return {
       id: item.id,
       title: item.title || 'Untitled GIF',
+      // Giphy's alt_text is a real human-written caption when present (not
+      // always — roughly half of results have one), so it's only ever used
+      // as an optional detail, never required.
+      description: item.alt_text || '',
+      url: item.url || null,
       thumb: images.fixed_width_small?.url || images.fixed_width?.url,
       mp4,
       still,
@@ -88,11 +107,18 @@ const Giphy = (() => {
 
   async function random() {
     if (USE_LIVE_API) {
-      const item = await request('random', { rating: 'g' });
-      return toPuzzleGif(item);
+      // /random returns a single GIF, not a batch to filter — if it happens
+      // to repeat one already shown this session, ask once more rather than
+      // accepting the repeat outright.
+      let gif = toPuzzleGif(await request('random', { rating: 'g' }));
+      if (shownIds.has(gif.id)) {
+        gif = toPuzzleGif(await request('random', { rating: 'g' }));
+      }
+      shownIds.add(gif.id);
+      return gif;
     }
     const pool = await loadStaticPool();
-    return pickRandom([...pool.trending, ...pool.classic]);
+    return pickUnseen([...pool.trending, ...pool.classic]);
   }
 
   // Giphy's search/trending results are stable for a given query+offset (not
@@ -104,20 +130,20 @@ const Giphy = (() => {
       const term = CLASSIC_TERMS[Math.floor(Math.random() * CLASSIC_TERMS.length)];
       const offset = Math.floor(Math.random() * 200);
       const gifs = await search(term, 25, offset);
-      return pickRandom(gifs);
+      return pickUnseen(gifs);
     }
     const pool = await loadStaticPool();
-    return pickRandom(pool.classic);
+    return pickUnseen(pool.classic);
   }
 
   async function trendingPick() {
     if (USE_LIVE_API) {
       const offset = Math.floor(Math.random() * 150);
       const gifs = await trending(25, offset);
-      return pickRandom(gifs);
+      return pickUnseen(gifs);
     }
     const pool = await loadStaticPool();
-    return pickRandom(pool.trending);
+    return pickUnseen(pool.trending);
   }
 
   return { search, random, trending, classicPick, trendingPick };

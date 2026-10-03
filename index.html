@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true">
@@ -111,6 +111,11 @@
       <h2 class="win-title">Solved!</h2>
       <p class="win-stats">Time <strong id="winTime">00:00</strong> · <span id="winDifficulty">Medium</span></p>
       <div class="win-preview"><video id="winVideo" muted loop playsinline autoplay></video></div>
+      <div class="win-gif-info">
+        <p class="win-gif-title" id="winGifTitle"></p>
+        <p class="win-gif-desc" id="winGifDesc"></p>
+        <a class="win-gif-link" id="winGifLink" href="#" target="_blank" rel="noopener">View on GIPHY ↗</a>
+      </div>
       <div class="win-actions">
         <button type="button" id="playAgainBtn" class="win-btn primary">🔁 Play Again</button>
         <button type="button" id="newThemeBtn" class="win-btn">🎲 New GIF</button>
@@ -120,10 +125,10 @@
 
   <video id="src" muted loop playsinline style="display:none"></video>
 
-  <script src="giphy.js?v=3"></script>
+  <script src="giphy.js?v=4"></script>
   <script src="confetti.js"></script>
   <script src="puzzle.js?v=10"></script>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 
   <footer class="site-footer">
     <p><a href="https://gtbr.co.uk/" target="_blank" rel="noopener">GTBR</a> side-quest 🪿 · Powered by <a href="https://giphy.com/" target="_blank" rel="noopener">GIPHY</a></p>
