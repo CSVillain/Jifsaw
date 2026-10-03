@@ -529,6 +529,25 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   background: #000;
 }
 .win-preview video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.win-gif-info { margin: -10px 0 20px; }
+.win-gif-title {
+  margin: 0 0 4px;
+  font-weight: 700;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+.win-gif-desc {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.win-gif-link {
+  font-size: 0.78rem;
+  color: var(--accent-3);
+  text-decoration: none;
+}
+.win-gif-link:hover { text-decoration: underline; }
 .win-actions { display: flex; gap: 10px; justify-content: center; }
 .win-btn { font-weight: 700; padding: 12px 18px; }
 .win-btn.primary {

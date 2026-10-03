@@ -33,6 +33,9 @@
   const winDifficultyEl = document.getElementById('winDifficulty');
   const winBestEl = document.getElementById('winBest');
   const winVideo = document.getElementById('winVideo');
+  const winGifTitleEl = document.getElementById('winGifTitle');
+  const winGifDescEl = document.getElementById('winGifDesc');
+  const winGifLinkEl = document.getElementById('winGifLink');
   const playAgainBtn = document.getElementById('playAgainBtn');
   const newThemeBtn = document.getElementById('newThemeBtn');
 
@@ -402,6 +405,17 @@
       winVideo.src = gif.mp4;
       winVideo.play().catch(() => {});
     }
+
+    winGifTitleEl.textContent = gif.title || '';
+    winGifDescEl.textContent = gif.description || '';
+    winGifDescEl.classList.toggle('hidden', !gif.description);
+    if (gif.url) {
+      winGifLinkEl.href = gif.url;
+      winGifLinkEl.classList.remove('hidden');
+    } else {
+      winGifLinkEl.classList.add('hidden');
+    }
+
     winOverlay.classList.remove('hidden');
     if (stopConfetti) stopConfetti();
     stopConfetti = Confetti.launch(confettiCanvas, { duration: 3500 });
