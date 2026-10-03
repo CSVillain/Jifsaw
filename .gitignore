@@ -17,3 +17,6 @@ desktop.ini
 node_modules/
 test-results/
 playwright-report/
+
+# Wrangler local state/logs (Cloudflare Worker deploy tooling)
+.wrangler/
