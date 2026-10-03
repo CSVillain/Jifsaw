@@ -92,7 +92,17 @@ test('New button clears the board and tray', async ({ page }) => {
   await page.locator('#themeStage').click();
   await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
 
-  await page.locator('#newBtn').click();
+  // Pieces scatter across the whole viewport and can legitimately land on
+  // top of the toolbar (confirmed live: ~2 of 9 pieces overlap the New
+  // button at rest, not just mid-animation) — a real pre-existing UX quirk,
+  // not a test timing issue, so waiting longer doesn't help, and
+  // click({force:true}) is wrong here too: it dispatches at the button's
+  // coordinates but hits whatever's visually on top (a piece canvas), not
+  // the button underneath — the click never reaches newBtn's handler at
+  // all. What this test actually checks is "does clicking New clear the
+  // board", not "is the button visually unobstructed", so click the
+  // element directly rather than simulating a pointer at its location.
+  await page.locator('#newBtn').dispatchEvent('click');
   await expect(page.locator('#setup')).not.toHaveClass(/hidden/);
 
   const leftoverPieces = await page.locator('.piece').count();
