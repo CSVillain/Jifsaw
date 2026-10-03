@@ -67,8 +67,20 @@ for the proxy endpoint. The Worker source is already in this repo at
    - Set `USE_LIVE_API = true`
 8. If the site is ever hosted somewhere other than
    `https://csvillain.github.io`, update `ALLOWED_ORIGIN` at the top of
-   `worker/giphy-proxy.js` to match, and redeploy the Worker — the CORS
-   check only allows requests from that exact origin.
+   `worker/giphy-proxy.js` to match, and push to `main` — the CORS check
+   only allows requests from that exact origin.
+
+**After this one-time setup, deploys are automatic.** The Worker is
+connected to this GitHub repo via Cloudflare's Workers Builds — every push
+to `main` re-runs `npx wrangler deploy` and the Worker picks up whatever's
+in `worker/giphy-proxy.js`. You don't need to open the Cloudflare dashboard
+again to ship a Worker change; editing the file and pushing is enough.
+`wrangler.toml` at the repo root is what makes this work — it tells
+wrangler to deploy only `worker/giphy-proxy.js` as a script Worker, not the
+whole repository as a static-assets bundle (which fails: `node_modules`
+alone is well over the 25 MiB per-asset limit). If you ever see a Worker
+build fail with "Asset too large", check that `wrangler.toml` is still
+present and correctly points `main` at the worker script.
 
 ### Option B: Netlify Functions (if you move hosting to Netlify)
 

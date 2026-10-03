@@ -1,0 +1,15 @@
+# Cloudflare Worker config for the Giphy proxy (worker/giphy-proxy.js).
+#
+# This repo is a static site for GitHub Pages PLUS this one small Worker —
+# without this file, Cloudflare's Workers Builds (connected to this repo,
+# auto-deploying on push to main) has no way to know that, and falls back to
+# treating the entire repo root as a static-assets bundle to deploy. That
+# pulls in node_modules (hundreds of MB, including binaries well over the
+# Workers 25 MiB per-file asset limit) and fails every build. This file
+# scopes the deploy to exactly the one script Worker needs.
+name = "jifsaw-giphy-proxy"
+main = "worker/giphy-proxy.js"
+compatibility_date = "2026-09-30"
+
+[observability]
+enabled = true
