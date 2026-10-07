@@ -65,10 +65,12 @@ for the proxy endpoint. The Worker source is already in this repo at
    - Set `PROXY_BASE` to that exact URL (replacing the `YOUR-SUBDOMAIN`
      placeholder already there)
    - Set `USE_LIVE_API = true`
-8. If the site is ever hosted somewhere other than
-   `https://csvillain.github.io`, update `ALLOWED_ORIGIN` at the top of
-   `worker/giphy-proxy.js` to match, and push to `main` — the CORS check
-   only allows requests from that exact origin.
+8. If the site is ever reachable from an origin not already listed, add it
+   to `ALLOWED_ORIGINS` at the top of `worker/giphy-proxy.js` and push to
+   `main` — the CORS check only allows requests from an origin in that set
+   (currently `jifsaw.com` and the original `csvillain.github.io` link, both
+   kept working since GitHub still serves the old URL after a custom domain
+   is set).
 
 **After this one-time setup, deploys are automatic.** The Worker is
 connected to this GitHub repo via Cloudflare's Workers Builds — every push
