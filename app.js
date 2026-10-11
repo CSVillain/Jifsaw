@@ -64,14 +64,14 @@
     muteBtn.setAttribute('aria-pressed', String(muted));
     muteBtn.title = muted ? 'Unmute sound' : 'Mute sound';
   }
-  const storedMute = window.localStorage?.getItem('jifsaw:muted') === '1';
+  const storedMute = Storage.getMuted();
   Sound.setMuted(storedMute);
   applyMuteIcon(storedMute);
   muteBtn.addEventListener('click', () => {
     const next = !Sound.isMuted();
     Sound.setMuted(next);
     applyMuteIcon(next);
-    try { window.localStorage?.setItem('jifsaw:muted', next ? '1' : '0'); } catch {}
+    Storage.setMuted(next);
   });
 
   function updateSetupBestTime() {
