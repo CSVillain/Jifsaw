@@ -233,6 +233,51 @@ test.describe('off-board piece joining', () => {
     expect(result.locked).toBe(true);
   });
 
+  // Issue #1: pieces within the upright tolerance (~6°) are allowed to join,
+  // but used to keep their small tilt afterwards, so the seam between them
+  // was visibly off. A join must leave every member of the merged group at 0°.
+  test('joining straightens slightly tilted pieces so the seam lines up', async ({ page }) => {
+    await buildTestGame(page);
+    const result = await page.evaluate(() => {
+      const g = window.__game;
+      const p00 = g.pieces.find(p => p.r === 0 && p.c === 0);
+      const p01 = g.pieces.find(p => p.r === 0 && p.c === 1);
+      window.__place(p00, 300, 400, -4);
+      const dx = p01.home.x - p00.home.x, dy = p01.home.y - p00.home.y;
+      window.__place(p01, 300 + dx, 400 + dy, 5);
+      const joined = g._tryJoinOffBoard(p00);
+      return { joined, rots: [p00.rot, p01.rot], transforms: [p00.canvas.style.transform, p01.canvas.style.transform] };
+    });
+    expect(result.joined).toBe(true);
+    expect(result.rots).toEqual([0, 0]);
+    result.transforms.forEach(t => expect(t === '' || /rotate\(0(deg)?\)/.test(t)).toBe(true));
+  });
+
+  // Issue #1: only the grabbed piece used to be tested against neighbours, so
+  // a group dropped with a *different* member next to another group's piece
+  // would not join.
+  test('a group joins when a piece other than the grabbed one meets a neighbour', async ({ page }) => {
+    await buildTestGame(page);
+    const result = await page.evaluate(() => {
+      const g = window.__game;
+      const p00 = g.pieces.find(p => p.r === 0 && p.c === 0);
+      const p01 = g.pieces.find(p => p.r === 0 && p.c === 1);
+      const p02 = g.pieces.find(p => p.r === 0 && p.c === 2);
+      window.__place(p00, 300, 400);
+      const d01x = p01.home.x - p00.home.x, d01y = p01.home.y - p00.home.y;
+      window.__place(p01, 300 + d01x, 400 + d01y);
+      g._tryJoinOffBoard(p00); // group {p00, p01}
+      const d02x = p02.home.x - p00.home.x, d02y = p02.home.y - p00.home.y;
+      window.__place(p02, 300 + d02x, 400 + d02y);
+      // p00 is grabbed, but only p01 touches p02.
+      const joined = g._tryJoinOffBoard(p00);
+      return { joined, groupSize: p00.group.length, sameGroup: p00.group === p02.group };
+    });
+    expect(result.joined).toBe(true);
+    expect(result.sameGroup).toBe(true);
+    expect(result.groupSize).toBe(3);
+  });
+
   test('non-adjacent pieces placed close together do not join', async ({ page }) => {
     await buildTestGame(page);
     const result = await page.evaluate(() => {
