@@ -1,12 +1,13 @@
 // GIF source for Jifsaw. Two modes, switched by USE_LIVE_API below:
 //
-//  - STATIC (default): picks from gifs.json, a curated pool baked into the
-//    repo ahead of time (see scripts/refresh-gifs.md). No API key ships to
-//    the browser, no backend needed — works as-is on GitHub Pages.
-//  - LIVE: calls Giphy's search/trending/random endpoints through a
-//    server-side proxy you host (see scripts/refresh-gifs.md for the full
-//    switch-over steps). Never point this at Giphy directly with an
+//  - LIVE (current default): calls Giphy's search/trending/random endpoints
+//    through the Cloudflare Worker in PROXY_BASE (see
+//    scripts/refresh-gifs.md). Never point this at Giphy directly with an
 //    embedded key — that ships the secret to every visitor's browser.
+//    There is no automatic fallback: if the Worker fails, the player sees
+//    an error.
+//  - STATIC: picks from gifs.json, a curated pool baked into the repo (see
+//    scripts/refresh-gifs.md). No API key and no backend needed.
 //
 const Giphy = (() => {
   const USE_LIVE_API = true;

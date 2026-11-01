@@ -1,12 +1,21 @@
-# GIF pool: refreshing and switching to live search
+# GIF pool and Giphy Worker
 
-Jifsaw ships in **static mode**: `gifs.json` is a curated pool of GIFs
-(trending + a set of "classic" reaction terms) fetched once from Giphy and
-baked into the repo. No API key is shipped to the browser, no backend is
-required, and it works as-is on GitHub Pages or any static host.
+Jifsaw currently ships with **live API mode enabled** in `giphy.js`.
+The browser calls the Cloudflare Worker configured there; the Worker adds the
+Giphy API key server-side and forwards requests to Giphy. The key is not sent
+to the browser.
 
-This doc covers the two things you'll eventually want to do: refresh the
-pool with newer content, and (optionally) switch to live search.
+The Worker is public and does not authenticate callers. Its CORS allowlist
+controls which browser origins can read responses; it does not prevent other
+callers from making requests or consuming the shared Giphy quota. The Worker
+has a best-effort rate limit of 30 requests per minute per client IP and
+Cloudflare location when the configured binding is active. This is not a
+global quota. Check the Worker and Giphy account usage if quota protection is
+important.
+
+`gifs.json` is still a curated pool that can be refreshed and used in static
+mode. This guide covers refreshing it, configuring the live Worker, and
+switching the client back to static mode.
 
 ## Refreshing the static pool
 
@@ -30,14 +39,15 @@ regenerate it:
    terminal — it's only ever in your local shell's environment, never on disk.
 
 You can re-run this on whatever cadence makes sense (monthly, before a demo,
-whenever the pool feels stale). Nothing about the live site changes when you
-do this — it's just swapping which static file ships.
+whenever the pool feels stale). The pool is only used in static mode, so
+while live mode is on, players will not see the refreshed GIFs.
 
-## Switching to live search (optional, more involved)
+## Setting up your own live proxy
 
-If you want true live search/trending/random instead of a fixed pool, the
-key must never be embedded in the shipped JS or called directly from the
-browser as `api.giphy.com?api_key=...` — that exposes it to every visitor.
+Live mode is already configured in the checked-in code. This section is for
+deploying your own proxy. The key must never be embedded in the shipped JS or
+called directly from the browser as `api.giphy.com?api_key=...` — that
+exposes it to every visitor.
 Instead, put a thin server-side proxy in front of Giphy. Two options below;
 pick one.
 
@@ -61,10 +71,9 @@ for the proxy endpoint. The Worker source is already in this repo at
    your key, **Save and deploy**.
 6. **Copy the Worker's URL** — shown on the Worker's overview page, looks like
    `https://jifsaw-giphy-proxy.<your-subdomain>.workers.dev`.
-7. **Point the app at it.** In `giphy.js`:
-   - Set `PROXY_BASE` to that exact URL (replacing the `YOUR-SUBDOMAIN`
-     placeholder already there)
-   - Set `USE_LIVE_API = true`
+7. **Point the app at it.** `giphy.js` already points at the project's
+   Worker with `USE_LIVE_API = true`. Only if you deployed your own Worker,
+   set `PROXY_BASE` to its exact URL.
 8. If the site is ever reachable from an origin not already listed, add it
    to `ALLOWED_ORIGINS` at the top of `worker/giphy-proxy.js` and push to
    `main` — the CORS check only allows requests from an origin in that set
@@ -107,7 +116,7 @@ this GitHub repo — simpler if you're open to moving off GitHub Pages.
 3. Set `GIPHY_API_KEY` as an environment variable in Netlify's dashboard
    (Site settings → Environment variables).
 4. In `giphy.js`, set `PROXY_BASE = '/api/giphy'` (same-origin, since
-   Netlify serves both the site and the function) and `USE_LIVE_API = true`.
+   Netlify serves both the site and the function). Keep `USE_LIVE_API = true`.
 
 ### Either way
 
@@ -115,6 +124,10 @@ this GitHub repo — simpler if you're open to moving off GitHub Pages.
 every outgoing request from the page should hit *your* proxy's domain, not
 `api.giphy.com` directly.
 
-Static mode and live mode aren't mutually exclusive long-term — you could
-keep static mode as the always-working fallback and only flip to live mode
-if you set up and trust the proxy.
+The checked-in client currently uses live mode.
+
+**When the Worker fails:** there is no automatic fallback. If the Worker
+returns 429 (rate limit), Giphy quota runs out, or the Worker is down, the
+player sees an error message and can retry. To recover, set
+`USE_LIVE_API = false` in `giphy.js` and redeploy; this avoids Worker
+requests but uses only the GIFs already stored in `gifs.json`.
