@@ -4,7 +4,7 @@ A jigsaw puzzle where the picture is a looping GIF instead of a still image.
 Pick a difficulty and a GIF theme, then drag interlocking pieces back together
 while the image keeps playing underneath.
 
-**Play it:** https://csvillain.github.io/Jifsaw/
+**Play it:** https://jifsaw.com/
 
 <p>
   <img src="docs/screenshot-gameplay.png" alt="Jifsaw mid-puzzle: a partly-solved GIF jigsaw with shiny, dealt-out pieces below the board" width="49%">
@@ -13,17 +13,18 @@ while the image keeps playing underneath.
 
 ## Running it locally
 
-No build step, no install. Either:
+No build step is required. Serve the folder over HTTP, for example:
 
-- Open `index.html` directly in a browser, or
-- Serve the folder so relative fetches (like `gifs.json`) work over `http://`
-  instead of `file://`:
+```powershell
+python -m http.server 5173 --bind 127.0.0.1
+```
 
-  ```powershell
-  python -m http.server 5173
-  ```
-
-  then open `http://localhost:5173`.
+Open `http://127.0.0.1:5173`. The production GIF proxy only allows the deployed
+origins, so starting a puzzle locally in live mode will fail its CORS check.
+For manual local gameplay, temporarily set `USE_LIVE_API = false` in `giphy.js`
+to use the curated `gifs.json` pool; restore it before committing. Do not add
+`null` or wildcard origins to the production proxy. Automated browser tests mock
+the GIF service and do not need a real API key or changes to live mode.
 
 ## How it works
 
@@ -46,13 +47,16 @@ No build step, no install. Either:
 
 ## Testing
 
-Requires Node.js. Install dev dependencies once with `npm install`, then:
+Requires Node.js 22.22.2+, 24.15.0+, or 26+ (matching `engines.node`), and Python 3 for the browser-test server. Install locked dev dependencies with `npm ci`, then:
 
 - `npm test` — unit tests (Vitest) for the pure logic in `puzzle.js` (piece
   geometry) and `giphy.js` (the random-offset fix that stops repeated GIFs)
 - `npm run test:e2e` — Playwright smoke tests against a local static server:
   mobile layout, theme/difficulty controls, full puzzle deal, and the
   New-button reset — covers the real regressions found in earlier sessions
+
+Install Chromium once with `npx playwright install chromium` before running the
+browser suite. GitHub Actions runs the unit suite, browser suite, and `npm audit`.
 
 ## Stack
 
