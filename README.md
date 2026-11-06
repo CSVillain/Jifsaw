@@ -32,11 +32,17 @@ No build step, no install. Either:
 - **The image** is a looping `<video>` element (an mp4 version of the GIF),
   redrawn into each piece every frame — so the puzzle picture keeps playing
   while you solve it.
-- **GIFs** come from a small curated pool baked into the repo
-  (`gifs.json`) rather than a live Giphy API call, so no API key is shipped
-  to the browser and the site needs no backend. See
-  [`scripts/refresh-gifs.md`](scripts/refresh-gifs.md) for how to refresh
-  that pool or switch to live search later.
+- **GIFs** currently load live from Giphy through the Cloudflare Worker
+  configured in `giphy.js`. The Worker keeps the Giphy API key server-side;
+  the browser does not receive the key. The Worker is public, so its shared
+  Giphy quota can be consumed by callers outside the game. It applies a
+  best-effort limit of 30 requests per minute per client IP and Cloudflare
+  location when the rate-limit binding is configured. `gifs.json` remains
+  available as a curated pool, but live mode is enabled by default. There is
+  no automatic fallback: if the Worker returns 429 or is down, the player
+  sees an error. To recover, set `USE_LIVE_API = false` in `giphy.js` and
+  redeploy. See [`scripts/refresh-gifs.md`](scripts/refresh-gifs.md) for
+  details.
 
 ## Testing
 
@@ -55,7 +61,7 @@ Vanilla HTML, CSS, and JavaScript. No framework, no bundler, no dependencies.
 - `index.html` / `style.css` — layout and visual design
 - `app.js` — UI wiring (difficulty slider, theme picker, game flow)
 - `puzzle.js` — piece cutting, rendering, drag/drop and snap-to-place
-- `giphy.js` — GIF source (static pool by default; live-API path documented but unused)
+- `giphy.js` — live Giphy API requests through the configured Worker, with a curated static pool available
 - `confetti.js` — win-screen confetti
 
 ---

@@ -4,6 +4,7 @@
 // worth breaking the game over.
 const Storage = (() => {
   const PREFIX = 'jifsaw:bestTime:';
+  const MUTE_KEY = 'jifsaw:muted';
 
   function available() {
     try {
@@ -20,10 +21,14 @@ const Storage = (() => {
 
   function getBestTime(difficultyValue) {
     if (!canUseStorage) return null;
-    const raw = window.localStorage.getItem(PREFIX + difficultyValue);
-    if (raw === null) return null;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
+    try {
+      const raw = window.localStorage.getItem(PREFIX + difficultyValue);
+      if (raw === null) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    } catch {
+      return null;
+    }
   }
 
   // Saves `seconds` as the new best for `difficultyValue` if it's faster
@@ -33,11 +38,33 @@ const Storage = (() => {
     if (!canUseStorage) return false;
     const current = getBestTime(difficultyValue);
     if (current !== null && seconds >= current) return false;
-    window.localStorage.setItem(PREFIX + difficultyValue, String(seconds));
-    return true;
+    try {
+      window.localStorage.setItem(PREFIX + difficultyValue, String(seconds));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
-  return { getBestTime, saveBestTimeIfBetter };
+  function getMuted() {
+    if (!canUseStorage) return false;
+    try {
+      return window.localStorage.getItem(MUTE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function setMuted(muted) {
+    if (!canUseStorage) return;
+    try {
+      window.localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+    } catch {
+      // Losing the mute preference is never worth breaking the game over.
+    }
+  }
+
+  return { getBestTime, saveBestTimeIfBetter, getMuted, setMuted };
 })();
 
 if (typeof module !== 'undefined') module.exports = Storage;
