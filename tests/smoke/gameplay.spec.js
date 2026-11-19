@@ -5,8 +5,15 @@ import { test, expect } from '@playwright/test';
 // (the Worker's CORS is intentionally locked to the deployed GitHub Pages
 // origin, so a real call from localhost would fail regardless).
 async function mockGiphyProxy(page) {
-  await page.route('**/jifsaw-giphy-proxy*/**', (route) => {
-    const gifs = Array.from({ length: 25 }, (_, i) => ({
+  await page.route('**/jifsaw-giphy-proxy*/**', async (route) => {
+    const url = new URL(route.request().url());
+    const query = url.searchParams.get('q');
+    if (query === 'failure') {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'unavailable' }) });
+      return;
+    }
+    if (query === 'slow') await new Promise(resolve => setTimeout(resolve, 300));
+    const gifs = query === 'empty' ? [] : Array.from({ length: 25 }, (_, i) => ({
       id: `mock-${i}`,
       title: `Mock GIF ${i}`,
       images: {
@@ -15,7 +22,7 @@ async function mockGiphyProxy(page) {
         fixed_width_small: { url: 'https://example.com/mock-thumb.gif' },
       },
     }));
-    route.fulfill({
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ data: gifs, meta: { status: 200 } }),
@@ -56,6 +63,60 @@ test('theme carousel arrows cycle through themes', async ({ page }) => {
   await expect(stage).toHaveAttribute('data-current', 'trending');
   await page.locator('#themeNext').click();
   await expect(stage).toHaveAttribute('data-current', 'random');
+});
+
+test('category selection starts a matching puzzle and New GIF repeats the topic', async ({ page }) => {
+  await page.goto('/');
+  const firstSearch = page.waitForRequest((request) =>
+    request.url().includes('/search') && new URL(request.url()).searchParams.get('q') === 'animals'
+  );
+  await page.locator('#gifCategory').selectOption('animals');
+  await firstSearch;
+  await expect(page.locator('#game')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#loadingOverlay')).toHaveClass(/hidden/);
+
+  // Reveal the win actions so the New GIF handler can be exercised without
+  // simulating a full puzzle solve.
+  await page.locator('#winOverlay').evaluate(el => el.classList.remove('hidden'));
+  const repeatedSearch = page.waitForRequest((request) =>
+    request.url().includes('/search') && new URL(request.url()).searchParams.get('q') === 'animals'
+  );
+  await page.locator('#newThemeBtn').click();
+  await repeatedSearch;
+});
+
+test('search form submits with Enter and uses the entered topic', async ({ page }) => {
+  await page.goto('/');
+  const search = page.waitForRequest((request) =>
+    request.url().includes('/search') && new URL(request.url()).searchParams.get('q') === 'cats'
+  );
+  await page.locator('#gifSearch').fill('cats');
+  await page.locator('#gifSearch').press('Enter');
+  await search;
+  await expect(page.locator('#game')).not.toHaveClass(/hidden/);
+});
+
+test('loading is announced and an empty search shows a useful error', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#gifSearch').fill('slow');
+  await page.locator('#gifSearch').press('Enter');
+  await expect(page.locator('#loadingText')).toHaveAttribute('role', 'status');
+  await expect(page.locator('#loadingText')).toContainText('Finding slow GIFs');
+  await expect(page.locator('#game')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#loadingOverlay')).toHaveClass(/hidden/);
+
+  await page.locator('#newBtn').click();
+  await page.locator('#gifSearch').fill('empty');
+  await page.locator('#gifSearch').press('Enter');
+  await expect(page.locator('#searchStatus')).toContainText('No GIFs found for “empty”');
+  await expect(page.locator('#searchStatus')).toHaveAttribute('aria-live', 'polite');
+});
+
+test('search request failures are shown on the setup screen', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#gifSearch').fill('failure');
+  await page.locator('#gifSearch').press('Enter');
+  await expect(page.locator('#searchStatus')).toContainText('Giphy proxy request failed (503)');
 });
 
 test('difficulty slider selects Hard via its tick label', async ({ page }) => {

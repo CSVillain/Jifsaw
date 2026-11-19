@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true">
@@ -53,6 +53,26 @@
       </div>
     </div>
 
+    <div class="topic-controls" aria-label="Choose GIFs for your puzzle">
+      <label class="topic-label" for="gifCategory">Choose a GIF topic</label>
+      <select id="gifCategory" class="topic-select">
+        <option value="">Pick a category…</option>
+        <option value="animals">Animals</option>
+        <option value="anime">Anime</option>
+        <option value="gaming">Gaming</option>
+        <option value="movies">Movies</option>
+        <option value="nature">Nature</option>
+        <option value="sports">Sports</option>
+      </select>
+      <form id="gifSearchForm" class="topic-search">
+        <label class="topic-label" for="gifSearch">Or search for a topic</label>
+        <div class="topic-search-row">
+          <input id="gifSearch" class="topic-input" type="search" maxlength="50" autocomplete="off" placeholder="Try cats, space, or dancing">
+          <button class="topic-search-button" type="submit">Search</button>
+        </div>
+      </form>
+    </div>
+
     <div class="choice-group" id="difficultyGroup" data-value="3x3">
       <div class="diff-slider">
         <div class="diff-track" id="diffTrack">
@@ -70,13 +90,13 @@
       <p class="best-time-label" id="setupBestTime"></p>
     </div>
 
-    <p id="searchStatus" class="status"></p>
+    <p id="searchStatus" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
   </section>
 
   <div id="loadingOverlay" class="loading-overlay hidden">
     <div class="loading-card">
       <div class="loading-spinner"><span></span><span></span><span></span><span></span></div>
-      <p id="loadingText" class="loading-text">Fetching a GIF…</p>
+      <p id="loadingText" class="loading-text" role="status" aria-live="polite">Fetching a GIF…</p>
     </div>
   </div>
 
@@ -128,12 +148,12 @@
 
   <video id="src" muted loop playsinline style="display:none"></video>
 
-  <script src="giphy.js?v=4"></script>
+  <script src="giphy.js?v=5"></script>
   <script src="confetti.js"></script>
   <script src="sound.js?v=2"></script>
   <script src="storage.js"></script>
   <script src="puzzle.js?v=12"></script>
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 
   <footer class="site-footer">
     <p><a href="https://gtbr.co.uk/" target="_blank" rel="noopener">GTBR</a> side-quest 🪿 · Powered by <a href="https://giphy.com/" target="_blank" rel="noopener">GIPHY</a></p>

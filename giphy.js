@@ -1,12 +1,13 @@
 // GIF source for Jifsaw. Two modes, switched by USE_LIVE_API below:
 //
-//  - STATIC (default): picks from gifs.json, a curated pool baked into the
-//    repo ahead of time (see scripts/refresh-gifs.md). No API key ships to
-//    the browser, no backend needed — works as-is on GitHub Pages.
-//  - LIVE: calls Giphy's search/trending/random endpoints through a
-//    server-side proxy you host (see scripts/refresh-gifs.md for the full
-//    switch-over steps). Never point this at Giphy directly with an
+//  - LIVE (current default): calls Giphy's search/trending/random endpoints
+//    through the Cloudflare Worker in PROXY_BASE (see
+//    scripts/refresh-gifs.md). Never point this at Giphy directly with an
 //    embedded key — that ships the secret to every visitor's browser.
+//    There is no automatic fallback: if the Worker fails, the player sees
+//    an error.
+//  - STATIC: picks from gifs.json, a curated pool baked into the repo (see
+//    scripts/refresh-gifs.md). No API key and no backend needed.
 //
 const Giphy = (() => {
   const USE_LIVE_API = true;
@@ -93,6 +94,17 @@ const Giphy = (() => {
     'dance party', 'high five', 'mind blown', 'slow clap', 'fist bump', 'shrug',
   ];
 
+  // A deliberately small topic set for the game setup screen. These are
+  // search terms, not a mirror of GIPHY's full category catalogue.
+  const CATEGORIES = [
+    { label: 'Animals', query: 'animals' },
+    { label: 'Anime', query: 'anime' },
+    { label: 'Gaming', query: 'gaming' },
+    { label: 'Movies', query: 'movies' },
+    { label: 'Nature', query: 'nature' },
+    { label: 'Sports', query: 'sports' },
+  ];
+
   async function search(query, limit = 12, offset = 0) {
     if (!USE_LIVE_API) throw new Error('Live search is disabled — using the static GIF pool (see giphy.js).');
     const items = await request('search', { q: query, limit, offset, rating: 'g' });
@@ -146,7 +158,18 @@ const Giphy = (() => {
     return pickUnseen(pool.trending);
   }
 
-  return { search, random, trending, classicPick, trendingPick };
+  async function searchPick(query) {
+    const cleanQuery = String(query ?? '').trim();
+    if (!cleanQuery) throw new Error('Enter a topic to search for.');
+    if (cleanQuery.length > 50) throw new Error('Search topics must be 50 characters or fewer.');
+
+    const offset = Math.floor(Math.random() * 201);
+    const gifs = await search(cleanQuery, 25, offset);
+    if (!gifs.length) throw new Error(`No GIFs found for “${cleanQuery}”. Try another topic.`);
+    return pickUnseen(gifs);
+  }
+
+  return { search, random, trending, classicPick, trendingPick, searchPick, CATEGORIES };
 })();
 
 // Inert in the browser (no bundler/module system is used there — this file
