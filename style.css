@@ -134,6 +134,35 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   font-weight: 600;
 }
 
+.topic-controls {
+  width: min(100%, 420px);
+  margin: -18px auto 26px;
+  display: grid;
+  gap: 9px;
+  text-align: left;
+}
+.topic-label { color: var(--text-dim); font-size: 0.8rem; font-weight: 600; }
+.topic-select, .topic-input {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-solid);
+  color: var(--text);
+  font: inherit;
+}
+.topic-select:focus-visible, .topic-input:focus-visible {
+  outline: 2px solid var(--accent-3);
+  outline-offset: 2px;
+}
+.topic-search { display: grid; gap: 7px; }
+.topic-search-row { display: flex; gap: 8px; }
+.topic-search-button { flex: 0 0 auto; }
+.topic-input::placeholder { color: var(--text-dim); opacity: 0.8; }
+.topic-select option { background: var(--panel-solid); color: var(--text); }
+
 .status { color: var(--text-dim); min-height: 1.2em; margin-top: 4px; }
 .status.error { color: #ff6b6b; }
 

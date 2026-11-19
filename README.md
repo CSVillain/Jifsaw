@@ -43,25 +43,28 @@ No build step, no install. Either:
   sees an error. To recover, set `USE_LIVE_API = false` in `giphy.js` and
   redeploy. See [`scripts/refresh-gifs.md`](scripts/refresh-gifs.md) for
   details.
+- Players can keep the existing Classic, Trending, and Random sources or
+  choose a compact GIF topic category or search for one. “New GIF” repeats
+  the active source; topic searches use the same G-rated Worker path.
 
 ## Testing
 
 Requires Node.js. Install dev dependencies once with `npm install`, then:
 
-- `npm test` — unit tests (Vitest) for the pure logic in `puzzle.js` (piece
-  geometry) and `giphy.js` (the random-offset fix that stops repeated GIFs)
+- `npm test` — Vitest tests for puzzle geometry, GIF selection, storage
+  failure handling, and Worker request validation
 - `npm run test:e2e` — Playwright smoke tests against a local static server:
-  mobile layout, theme/difficulty controls, full puzzle deal, and the
-  New-button reset — covers the real regressions found in earlier sessions
+  mobile layout, theme and topic search, difficulty controls, puzzle setup,
+  and visible loading and error states
 
 ## Stack
 
 Vanilla HTML, CSS, and JavaScript. No framework, no bundler, no dependencies.
 
 - `index.html` / `style.css` — layout and visual design
-- `app.js` — UI wiring (difficulty slider, theme picker, game flow)
+- `app.js` — UI wiring (difficulty slider, GIF source and topic picker, game flow)
 - `puzzle.js` — piece cutting, rendering, drag/drop and snap-to-place
-- `giphy.js` — live Giphy API requests through the configured Worker, with a curated static pool available
+- `giphy.js` — live Giphy API requests through the configured Worker, topic search and curated static pool
 - `confetti.js` — win-screen confetti
 
 ---

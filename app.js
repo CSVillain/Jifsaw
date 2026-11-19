@@ -1,6 +1,9 @@
 (() => {
   const setupSection = document.getElementById('setup');
   const searchStatus = document.getElementById('searchStatus');
+  const gifCategory = document.getElementById('gifCategory');
+  const gifSearchForm = document.getElementById('gifSearchForm');
+  const gifSearch = document.getElementById('gifSearch');
   const difficultyGroup = document.getElementById('difficultyGroup');
   const themeGroup = document.getElementById('themeGroup');
   const diffTrack = document.getElementById('diffTrack');
@@ -85,6 +88,7 @@
   let elapsedSec = 0;
   let stopConfetti = null;
   let lastGif = null;
+  let gifRequestInFlight = false;
 
   function setStatus(msg, isError = false) {
     searchStatus.textContent = msg;
@@ -269,19 +273,51 @@
   });
   themeStage.dataset.current = THEME_ORDER[themeIndex];
 
-  async function startFromTheme(theme) {
-    showLoading(THEME_LOADING_TEXT[theme] || 'Fetching a GIF…');
+  async function startFromSelection(selection) {
+    if (gifRequestInFlight) return;
+    gifRequestInFlight = true;
+    const loadingMessage = selection.type === 'theme'
+      ? THEME_LOADING_TEXT[selection.value] || 'Fetching a GIF…'
+      : `Finding ${selection.label} GIFs…`;
+    showLoading(loadingMessage);
     setStatus('');
     try {
-      const gif = await THEME_FETCHERS[theme]();
-      lastGif = { gif, theme };
+      const gif = selection.type === 'theme'
+        ? await THEME_FETCHERS[selection.value]()
+        : await Giphy.searchPick(selection.query);
+      lastGif = { gif, selection };
       await startPuzzle(gif);
     } catch (err) {
       setStatus(err.message, true);
     } finally {
       hideLoading();
+      gifRequestInFlight = false;
     }
   }
+
+  function clearTopicControls() {
+    gifCategory.value = '';
+    gifSearch.value = '';
+  }
+
+  function startFromTheme(theme) {
+    clearTopicControls();
+    return startFromSelection({ type: 'theme', value: theme });
+  }
+
+  gifCategory.addEventListener('change', () => {
+    const category = Giphy.CATEGORIES.find(item => item.query === gifCategory.value);
+    if (!category) return;
+    gifSearch.value = '';
+    startFromSelection({ type: 'topic', query: category.query, label: category.label });
+  });
+
+  gifSearchForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const query = gifSearch.value.trim();
+    gifCategory.value = '';
+    startFromSelection({ type: 'topic', query, label: query || 'your search' });
+  });
 
   function showLoading(text) {
     loadingText.textContent = text;
@@ -427,6 +463,6 @@
   });
   newThemeBtn.addEventListener('click', () => {
     winOverlay.classList.add('hidden');
-    if (lastGif) startFromTheme(lastGif.theme);
+    if (lastGif) startFromSelection(lastGif.selection);
   });
 })();

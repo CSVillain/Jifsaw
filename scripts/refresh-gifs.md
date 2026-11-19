@@ -5,6 +5,14 @@ The browser calls the Cloudflare Worker configured there; the Worker adds the
 Giphy API key server-side and forwards requests to Giphy. The key is not sent
 to the browser.
 
+The setup screen offers Classic, Trending, and Random plus a compact list of
+GIF topics and free-text search. Topic requests use GIPHY search, request
+G-rated content, and fetch a random page of results. The Worker forwards only
+`q`, `limit`, and `offset`, bounds request sizes, and sets `rating=g` itself;
+caller-supplied ratings and other parameters are ignored. The topic picker is
+intentionally curated in the app rather than mirroring GIPHY's full category
+catalogue.
+
 The Worker is public and does not authenticate callers. Its CORS allowlist
 controls which browser origins can read responses; it does not prevent other
 callers from making requests or consuming the shared Giphy quota. The Worker

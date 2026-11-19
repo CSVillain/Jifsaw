@@ -21,8 +21,10 @@ const ALLOWED_PATHS = new Set(['search', 'trending', 'random']);
 
 // Query params the app actually sends (see giphy.js) plus Giphy's own cap on
 // `limit`. Anything else from the caller is dropped rather than forwarded.
-const ALLOWED_PARAMS = new Set(['q', 'limit', 'offset', 'rating']);
+const ALLOWED_PARAMS = new Set(['q', 'limit', 'offset']);
 const MAX_LIMIT = 50;
+const MAX_OFFSET = 200;
+const MAX_QUERY_LENGTH = 50;
 
 function corsHeaders(request) {
   const origin = request.headers.get('Origin');
@@ -59,6 +61,14 @@ export default {
       return jsonResponse(request, 404, { error: 'Unknown endpoint' });
     }
 
+    if (path === 'search') {
+      const queries = url.searchParams.getAll('q');
+      const query = (queries[0] || '').trim();
+      if (queries.length !== 1 || !query || query.length > MAX_QUERY_LENGTH) {
+        return jsonResponse(request, 400, { error: 'Search query must be 1–50 characters.' });
+      }
+    }
+
     // Best-effort, per-location abuse control in front of the shared Giphy
     // key's quota — see wrangler.toml for the binding and its limits as a
     // control (not an exact global quota: counters are eventually
@@ -74,13 +84,25 @@ export default {
     const giphyUrl = new URL(path, GIPHY_BASE);
     for (const [key, value] of url.searchParams) {
       if (!ALLOWED_PARAMS.has(key)) continue;
-      if (key === 'limit') {
-        const n = Math.min(Math.max(parseInt(value, 10) || 0, 0), MAX_LIMIT);
-        giphyUrl.searchParams.set(key, String(n));
+      if (key === 'q') {
+        giphyUrl.searchParams.set(key, value.trim());
+      } else if (key === 'limit') {
+        const n = Number(value);
+        if (!Number.isInteger(n) || n < 1) {
+          return jsonResponse(request, 400, { error: 'Limit must be a positive integer.' });
+        }
+        giphyUrl.searchParams.set(key, String(Math.min(n, MAX_LIMIT)));
+      } else if (key === 'offset') {
+        const n = Number(value);
+        if (!Number.isInteger(n) || n < 0) {
+          return jsonResponse(request, 400, { error: 'Offset must be a non-negative integer.' });
+        }
+        giphyUrl.searchParams.set(key, String(Math.min(n, MAX_OFFSET)));
       } else {
         giphyUrl.searchParams.set(key, value);
       }
     }
+    giphyUrl.searchParams.set('rating', 'g');
     giphyUrl.searchParams.set('api_key', env.GIPHY_API_KEY);
 
     const giphyRes = await fetch(giphyUrl);

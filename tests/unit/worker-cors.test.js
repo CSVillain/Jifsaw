@@ -10,7 +10,7 @@ import worker from '../../worker/giphy-proxy.js';
 
 function request(path, origin) {
   const headers = origin ? { Origin: origin } : {};
-  return new Request(`https://example.workers.dev/${path}?rating=g`, { headers });
+  return new Request(`https://example.workers.dev/${path}`, { headers });
 }
 
 const fakeEnv = { GIPHY_API_KEY: 'test-key' };
@@ -66,12 +66,13 @@ describe('Worker method and param handling', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('drops params outside the allowlist before calling Giphy', async () => {
-    await worker.fetch(
-      request('search?q=cats&evil=1&api_key=hijack', 'https://jifsaw.com'),
-      fakeEnv
-    );
+  it('forwards search params, forces a G rating, and drops unsupported or secret params', async () => {
+    await worker.fetch(request('search?q=cats&limit=25&offset=12&rating=adult&evil=1&api_key=hijack', 'https://jifsaw.com'), fakeEnv);
     const calledUrl = global.fetch.mock.calls[0][0];
+    expect(calledUrl.searchParams.get('q')).toBe('cats');
+    expect(calledUrl.searchParams.get('limit')).toBe('25');
+    expect(calledUrl.searchParams.get('offset')).toBe('12');
+    expect(calledUrl.searchParams.get('rating')).toBe('g');
     expect(calledUrl.searchParams.get('evil')).toBeNull();
     // api_key is always set by the Worker itself from the secret, so the
     // caller-supplied value must never survive into the forwarded request.
@@ -82,6 +83,27 @@ describe('Worker method and param handling', () => {
     await worker.fetch(request('search?q=cats&limit=99999', 'https://jifsaw.com'), fakeEnv);
     const calledUrl = global.fetch.mock.calls[0][0];
     expect(calledUrl.searchParams.get('limit')).toBe('50');
+  });
+
+  it('clamps offsets to the range used by the app', async () => {
+    await worker.fetch(request('search?q=cats&offset=99999', 'https://jifsaw.com'), fakeEnv);
+    expect(global.fetch.mock.calls[0][0].searchParams.get('offset')).toBe('200');
+  });
+
+  it('rejects empty, overlong, or duplicate search queries before calling Giphy', async () => {
+    for (const path of ['search?q=%20%20', `search?q=${'a'.repeat(51)}`, 'search?q=cats&q=dogs']) {
+      const res = await worker.fetch(request(path, 'https://jifsaw.com'), fakeEnv);
+      expect(res.status).toBe(400);
+    }
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed limits and negative offsets', async () => {
+    for (const path of ['trending?limit=lots', 'trending?limit=0', 'trending?offset=-1']) {
+      const res = await worker.fetch(request(path, 'https://jifsaw.com'), fakeEnv);
+      expect(res.status).toBe(400);
+    }
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 

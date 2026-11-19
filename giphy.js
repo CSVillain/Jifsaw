@@ -94,6 +94,17 @@ const Giphy = (() => {
     'dance party', 'high five', 'mind blown', 'slow clap', 'fist bump', 'shrug',
   ];
 
+  // A deliberately small topic set for the game setup screen. These are
+  // search terms, not a mirror of GIPHY's full category catalogue.
+  const CATEGORIES = [
+    { label: 'Animals', query: 'animals' },
+    { label: 'Anime', query: 'anime' },
+    { label: 'Gaming', query: 'gaming' },
+    { label: 'Movies', query: 'movies' },
+    { label: 'Nature', query: 'nature' },
+    { label: 'Sports', query: 'sports' },
+  ];
+
   async function search(query, limit = 12, offset = 0) {
     if (!USE_LIVE_API) throw new Error('Live search is disabled — using the static GIF pool (see giphy.js).');
     const items = await request('search', { q: query, limit, offset, rating: 'g' });
@@ -147,7 +158,18 @@ const Giphy = (() => {
     return pickUnseen(pool.trending);
   }
 
-  return { search, random, trending, classicPick, trendingPick };
+  async function searchPick(query) {
+    const cleanQuery = String(query ?? '').trim();
+    if (!cleanQuery) throw new Error('Enter a topic to search for.');
+    if (cleanQuery.length > 50) throw new Error('Search topics must be 50 characters or fewer.');
+
+    const offset = Math.floor(Math.random() * 201);
+    const gifs = await search(cleanQuery, 25, offset);
+    if (!gifs.length) throw new Error(`No GIFs found for “${cleanQuery}”. Try another topic.`);
+    return pickUnseen(gifs);
+  }
+
+  return { search, random, trending, classicPick, trendingPick, searchPick, CATEGORIES };
 })();
 
 // Inert in the browser (no bundler/module system is used there — this file
