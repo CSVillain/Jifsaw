@@ -57,6 +57,21 @@ Requires Node.js. Install dev dependencies once with `npm install`, then:
   mobile layout, theme and topic search, difficulty controls, puzzle setup,
   and visible loading and error states
 
+## Link previews
+
+Sharing metadata lives in `index.html` so crawlers can read it without running
+JavaScript. The current preview is
+`https://jifsaw.com/assets/jifsaw-social-v1.png` (1200 × 630).
+
+Edit `assets/jifsaw-social.svg`, then run
+`node scripts/render-social-image.mjs v1` with the test dependencies and
+Playwright Chromium installed to regenerate the current PNG. When publishing new
+artwork, pass the next version (for example, `v2`) and update both image URLs in
+`index.html` to that filename. Commit the SVG, new PNG and metadata together.
+
+After publishing, check the deployed URL with LinkedIn Post Inspector to refresh
+its cached preview. Local changes alone do not update existing LinkedIn cards.
+
 ## Stack
 
 Vanilla HTML, CSS, and JavaScript. No framework, no bundler, no dependencies.
