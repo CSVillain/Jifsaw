@@ -55,6 +55,17 @@ for (const width of [320, 375, 414]) {
   });
 }
 
+test('setup exposes GIF choice and difficulty as distinct visible stages', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Choose your GIF' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Set the challenge' })).toBeVisible();
+  const source = await page.locator('.source-stage').boundingBox();
+  const challenge = await page.locator('.challenge-stage').boundingBox();
+  expect(source.x + source.width).toBeLessThan(challenge.x + 1);
+  expect(Math.abs(source.y - challenge.y)).toBeLessThan(2);
+});
+
 test('theme carousel arrows cycle through themes', async ({ page }) => {
   await page.goto('/');
   const stage = page.locator('#themeStage');
@@ -63,20 +74,27 @@ test('theme carousel arrows cycle through themes', async ({ page }) => {
   await expect(stage).toHaveAttribute('data-current', 'trending');
   await page.locator('#themeNext').click();
   await expect(stage).toHaveAttribute('data-current', 'random');
+  await expect(page.locator('#startPuzzleLabel')).toHaveText('Start Random puzzle');
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
 });
 
 test('category cards require confirmation, start the selected topic, and New GIF repeats it', async ({ page }) => {
   await page.goto('/');
+  let animalSearchRequests = 0;
+  page.on('request', (request) => {
+    if (request.url().includes('/search') && new URL(request.url()).searchParams.get('q') === 'animals') animalSearchRequests++;
+  });
   const animalCard = page.getByRole('radio', { name: 'Animals' });
   await animalCard.click();
   await expect(animalCard).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('#game')).toHaveClass(/hidden/);
-  await expect(page.locator('#topicStartButton')).toBeEnabled();
+  await expect(page.locator('#startPuzzleButton')).toBeEnabled();
+  expect(animalSearchRequests).toBe(0);
 
   const firstSearch = page.waitForRequest((request) =>
     request.url().includes('/search') && new URL(request.url()).searchParams.get('q') === 'animals'
   );
-  await page.locator('#topicStartButton').click();
+  await page.locator('#startPuzzleButton').click();
   await firstSearch;
   await expect(page.locator('#game')).not.toHaveClass(/hidden/);
   await expect(page.locator('#loadingOverlay')).toHaveClass(/hidden/);
@@ -102,13 +120,18 @@ test('category cards support arrow-key selection without starting the game', asy
   await expect(page.locator('#game')).toHaveClass(/hidden/);
 });
 
-test('search form submits with Enter and uses the entered topic', async ({ page }) => {
+test('search form stages the query and waits for the shared start action', async ({ page }) => {
   await page.goto('/');
+  await page.locator('#gifSearch').fill('cats');
+  await page.locator('#gifSearch').press('Enter');
+  await expect(page.locator('#selectedSourceSummary')).toHaveText('“cats” GIFs');
+  await expect(page.locator('#startPuzzleLabel')).toHaveText('Start cats puzzle');
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
+
   const search = page.waitForRequest((request) =>
     request.url().includes('/search') && new URL(request.url()).searchParams.get('q') === 'cats'
   );
-  await page.locator('#gifSearch').fill('cats');
-  await page.locator('#gifSearch').press('Enter');
+  await page.locator('#startPuzzleButton').click();
   await search;
   await expect(page.locator('#game')).not.toHaveClass(/hidden/);
 });
@@ -117,6 +140,8 @@ test('loading is announced and an empty search shows a useful error', async ({ p
   await page.goto('/');
   await page.locator('#gifSearch').fill('slow');
   await page.locator('#gifSearch').press('Enter');
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
+  await page.locator('#startPuzzleButton').click();
   await expect(page.locator('#loadingText')).toHaveAttribute('role', 'status');
   await expect(page.locator('#loadingText')).toContainText('Finding slow GIFs');
   await expect(page.locator('#game')).not.toHaveClass(/hidden/);
@@ -125,6 +150,7 @@ test('loading is announced and an empty search shows a useful error', async ({ p
   await page.locator('#newBtn').click();
   await page.locator('#gifSearch').fill('empty');
   await page.locator('#gifSearch').press('Enter');
+  await page.locator('#startPuzzleButton').click();
   await expect(page.locator('#searchStatus')).toContainText('No GIFs found for “empty”');
   await expect(page.locator('#searchStatus')).toHaveAttribute('aria-live', 'polite');
 });
@@ -133,6 +159,7 @@ test('search request failures are shown on the setup screen', async ({ page }) =
   await page.goto('/');
   await page.locator('#gifSearch').fill('failure');
   await page.locator('#gifSearch').press('Enter');
+  await page.locator('#startPuzzleButton').click();
   await expect(page.locator('#searchStatus')).toContainText('Giphy proxy request failed (503)');
 });
 
@@ -146,7 +173,7 @@ test('starting a puzzle deals all pieces fully inside the viewport', async ({ pa
   await page.setViewportSize({ width: 1200, height: 800 });
   await page.goto('/');
   await page.locator('[data-value="5x4"]').click(); // Hard = 20 pieces, tightest fit
-  await page.locator('#themeStage').click();
+  await page.locator('#startPuzzleButton').click();
   await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
 
   // Let the deal-out animation settle.
@@ -167,7 +194,7 @@ test('starting a puzzle deals all pieces fully inside the viewport', async ({ pa
 
 test('New button clears the board and tray', async ({ page }) => {
   await page.goto('/');
-  await page.locator('#themeStage').click();
+  await page.locator('#startPuzzleButton').click();
   await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
 
   await page.locator('#newBtn').click();
@@ -347,7 +374,7 @@ test.describe('mute toggle', () => {
   // "New button clears" test above.
   async function startAnyPuzzle(page) {
     await page.goto('/');
-    await page.locator('#themeStage').click();
+    await page.locator('#startPuzzleButton').click();
     await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
   }
 
