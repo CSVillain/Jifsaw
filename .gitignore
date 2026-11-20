@@ -20,3 +20,6 @@ playwright-report/
 
 # Wrangler local state/logs (Cloudflare Worker deploy tooling)
 .wrangler/
+
+# Local Cloudflare secret files
+/.dev.vars*
