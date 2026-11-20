@@ -53,7 +53,7 @@ body {
 }
 
 /* ---------- header ---------- */
-.topbar { padding: 48px 16px 36px; }
+.topbar { padding: 30px 16px 22px; }
 .wordmark {
   display: inline-flex;
   align-items: center;
@@ -129,12 +129,12 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(280px, .85fr);
   gap: 18px;
-  align-items: stretch;
+  align-items: start;
 }
 .setup-stage {
   position: relative;
   min-width: 0;
-  padding: 22px;
+  padding: 18px;
   text-align: left;
   border: 1px solid rgba(255,255,255,.12);
   border-radius: 24px;
@@ -184,7 +184,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 .topic-source { margin-top: 3px; }
 .theme-source .choice-group { margin: 0 auto; max-width: none; }
 .selected-source {
-  margin-top: auto;
+  margin-top: 24px;
   padding: 14px 15px;
   border: 1px solid rgba(34,211,238,.22);
   border-radius: 15px;
@@ -218,7 +218,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   margin: 0 auto;
   text-align: center;
 }
-.topic-heading { margin-bottom: 15px; }
+.topic-heading { margin-bottom: 8px; }
 .topic-title {
   margin: 0;
   color: var(--text);
@@ -230,17 +230,17 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 .topic-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
+  gap: 7px;
 }
 .topic-card {
-  min-height: 82px;
-  padding: 10px 8px;
+  min-height: 66px;
+  padding: 7px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  border-radius: 16px;
+  gap: 5px;
+  border-radius: 15px;
   background: linear-gradient(145deg, rgba(255,255,255,.065), rgba(255,255,255,.025));
   border-color: var(--border);
   transform: translateY(0);
@@ -259,7 +259,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 .topic-card:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 3px; }
 .topic-icon {
   display: block;
-  font-size: 1.45rem;
+  font-size: 1.25rem;
   line-height: 1;
   animation: themeFloat 3.4s ease-in-out infinite;
 }
@@ -294,7 +294,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 18px 0 13px;
+  margin: 11px 0 8px;
   color: var(--text-dim);
   font-size: .7rem;
 }
@@ -373,7 +373,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 .theme-stage {
   position: relative;
   width: 220px;
-  height: 148px;
+  height: 112px;
   cursor: pointer;
   touch-action: pan-y;
   flex-shrink: 0;
@@ -416,7 +416,7 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   50% { transform: translateY(-5px); }
 }
 
-.theme-caption { margin: 4px 0 9px; font-size: 0.68rem; color: var(--text-dim); opacity: 0.8; }
+.theme-caption { margin: 0 0 5px; font-size: 0.66rem; color: var(--text-dim); opacity: 0.8; }
 
 /* ---------- difficulty: drag-to-heat-up slider ---------- */
 .diff-header {
@@ -775,14 +775,15 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
   .setup { padding: 0 16px; }
   .setup-grid { grid-template-columns: 1fr; gap: 13px; }
   .setup-stage { padding: 18px; }
-  .challenge-stage { min-height: 315px; }
+
 }
 @media (max-width: 520px) {
   .logo { font-size: 2.1rem; }
   .setup-intro { margin-bottom: 16px; }
-  .setup-stage { padding: 16px; border-radius: 20px; }
+  .setup-stage { padding: 15px; border-radius: 20px; }
+  .theme-stage { height: 100px; }
   .diff-readout { display: none; }
-  .theme-stage { width: 180px; height: 130px; }
+  .theme-stage { width: 180px; height: 100px; }
   .theme-caption { display: none; }
   .game-toolbar { gap: 8px; }
   .timer-badge { padding: 8px 12px; }
@@ -791,5 +792,5 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 @media (max-width: 360px) {
   .theme-dial { gap: 6px; }
   .theme-arrow { width: 32px; height: 32px; }
-  .theme-stage { width: 152px; height: 122px; }
+  .theme-stage { width: 152px; height: 96px; }
 }
