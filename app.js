@@ -1,7 +1,10 @@
 (() => {
   const setupSection = document.getElementById('setup');
   const searchStatus = document.getElementById('searchStatus');
-  const gifCategory = document.getElementById('gifCategory');
+  const gifCategoryGroup = document.getElementById('gifCategoryGroup');
+  const categoryButtons = Array.from(gifCategoryGroup.querySelectorAll('.topic-card'));
+  const topicStartButton = document.getElementById('topicStartButton');
+  const topicStartLabel = document.getElementById('topicStartLabel');
   const gifSearchForm = document.getElementById('gifSearchForm');
   const gifSearch = document.getElementById('gifSearch');
   const difficultyGroup = document.getElementById('difficultyGroup');
@@ -295,28 +298,72 @@
     }
   }
 
+  let selectedCategory = null;
+
+  function clearCategorySelection() {
+    selectedCategory = null;
+    categoryButtons.forEach((button, index) => {
+      button.setAttribute('aria-checked', 'false');
+      button.tabIndex = index === 0 ? 0 : -1;
+      button.classList.remove('is-selected');
+    });
+    topicStartButton.disabled = true;
+    topicStartLabel.textContent = 'Choose a category to begin';
+  }
+
   function clearTopicControls() {
-    gifCategory.value = '';
+    clearCategorySelection();
     gifSearch.value = '';
   }
+
+  function chooseCategory(button, moveFocus = false) {
+    selectedCategory = {
+      type: 'topic',
+      query: button.dataset.query,
+      label: button.dataset.label,
+    };
+    categoryButtons.forEach((item) => {
+      const isSelected = item === button;
+      item.setAttribute('aria-checked', String(isSelected));
+      item.tabIndex = isSelected ? 0 : -1;
+      item.classList.toggle('is-selected', isSelected);
+    });
+    gifSearch.value = '';
+    topicStartButton.disabled = false;
+    topicStartLabel.textContent = `Start ${selectedCategory.label} puzzle`;
+    setStatus('');
+    if (moveFocus) button.focus();
+  }
+
+  categoryButtons.forEach((button, index) => {
+    button.addEventListener('click', () => chooseCategory(button));
+    button.addEventListener('keydown', (event) => {
+      let nextIndex = index;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % categoryButtons.length;
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + categoryButtons.length) % categoryButtons.length;
+      else if (event.key === 'Home') nextIndex = 0;
+      else if (event.key === 'End') nextIndex = categoryButtons.length - 1;
+      else return;
+      event.preventDefault();
+      chooseCategory(categoryButtons[nextIndex], true);
+    });
+  });
+
+  topicStartButton.addEventListener('click', () => {
+    if (selectedCategory) startFromSelection(selectedCategory);
+  });
 
   function startFromTheme(theme) {
     clearTopicControls();
     return startFromSelection({ type: 'theme', value: theme });
   }
 
-  gifCategory.addEventListener('change', () => {
-    const category = Giphy.CATEGORIES.find(item => item.query === gifCategory.value);
-    if (!category) return;
-    gifSearch.value = '';
-    startFromSelection({ type: 'topic', query: category.query, label: category.label });
-  });
-
   gifSearchForm.addEventListener('submit', (event) => {
     event.preventDefault();
     const query = gifSearch.value.trim();
-    gifCategory.value = '';
-    startFromSelection({ type: 'topic', query, label: query || 'your search' });
+    if (!query) return;
+    clearCategorySelection();
+    startFromSelection({ type: 'topic', query, label: query });
   });
 
   function showLoading(text) {
