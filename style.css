@@ -485,8 +485,10 @@ button:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; 
 .loading-text { margin: 0; color: var(--text-dim); font-weight: 500; }
 
 /* ---------- game ---------- */
-.game { max-width: 960px; margin: 0 auto; padding: 0 16px; animation: fadeUp 0.4s ease both; }
+.game { max-width: 960px; margin: 0 auto; padding: 0 16px; animation: fadeUp 0.4s ease; }
 .game-toolbar {
+  position: relative;
+  z-index: 6;
   display: flex;
   align-items: center;
   justify-content: center;

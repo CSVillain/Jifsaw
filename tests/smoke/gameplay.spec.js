@@ -236,6 +236,34 @@ test('starting a puzzle deals all pieces fully inside the viewport', async ({ pa
   expect(pieceCount).toBe(20);
 });
 
+test('tray pieces cannot block game toolbar controls', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#themeStage').click();
+  await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
+
+  const control = page.locator('#newBtn');
+  const piece = page.locator('#tray .piece').first();
+  await expect(piece).toBeVisible();
+
+  await page.evaluate(() => {
+    const button = document.getElementById('newBtn');
+    const canvas = document.querySelector('#tray .piece');
+    const rect = button.getBoundingClientRect();
+    canvas.style.transition = 'none';
+    canvas.style.left = `${rect.left + rect.width / 2 - canvas.width / 2}px`;
+    canvas.style.top = `${rect.top + rect.height / 2 - canvas.height / 2}px`;
+    canvas.style.zIndex = '9999';
+  });
+
+  await expect.poll(() => control.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest('#newBtn') === button;
+  })).toBe(true);
+
+  await control.click();
+  await expect(page.locator('#setup')).not.toHaveClass(/hidden/);
+});
+
 test('New button clears the board and tray', async ({ page }) => {
   await page.goto('/');
   await page.locator('#themeStage').click();
@@ -568,18 +596,37 @@ test.describe('Hard-mode piece drift', () => {
 
   test('a piece stops drifting the instant it is picked up', async ({ page }) => {
     await buildHardGame(page);
-    // Force a known drift velocity so there's something to prove got
-    // cleared, then press down on the piece with a REAL mouse event —
-    // _onPointerDown calls canvas.setPointerCapture(e.pointerId), which
-    // requires a genuine active pointer id from the browser, not a
-    // synthesized event object.
+    // Freeze the render loop so the target cannot move between measuring its
+    // hit area and sending the real pointer event. Pointer capture requires a
+    // genuine browser pointer id, so keep the interaction real.
     const target = await page.evaluate(() => {
       const g = window.__game;
-      const p = g.pieces.find(pc => !pc.locked);
-      p.driftVx = 5; p.driftVy = 5;
-      g.__testPieceIndex = g.pieces.indexOf(p);
-      const r = p.canvas.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      cancelAnimationFrame(g._raf);
+
+      let hit = null;
+      for (const piece of g.pieces) {
+        const rect = piece.canvas.getBoundingClientRect();
+        for (const fy of [0.25, 0.5, 0.75]) {
+          for (const fx of [0.25, 0.5, 0.75]) {
+            const x = rect.left + rect.width * fx;
+            const y = rect.top + rect.height * fy;
+            const candidate = g._pieceAt(x, y);
+            if (candidate) {
+              hit = { piece: candidate, x, y };
+              break;
+            }
+          }
+          if (hit) break;
+        }
+        if (hit) break;
+      }
+
+      if (!hit) throw new Error('Could not find an exposed point on a loose piece');
+      const anchor = hit.piece.group[0];
+      anchor.driftVx = 5;
+      anchor.driftVy = 5;
+      g.__testPieceIndex = g.pieces.indexOf(anchor);
+      return { x: hit.x, y: hit.y };
     });
     await page.mouse.move(target.x, target.y);
     await page.mouse.down();
