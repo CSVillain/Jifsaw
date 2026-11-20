@@ -612,10 +612,12 @@ test.describe('Hard-mode piece drift', () => {
         const rect = piece.canvas.getBoundingClientRect();
         for (const fy of [0.25, 0.5, 0.75]) {
           for (const fx of [0.25, 0.5, 0.75]) {
-            const x = rect.left + rect.width * fx;
-            const y = rect.top + rect.height * fy;
+            const x = Math.round(rect.left + rect.width * fx);
+            const y = Math.round(rect.top + rect.height * fy);
             const candidate = g._pieceAt(x, y);
-            if (candidate) {
+            // The shape hit test can see pieces underneath toolbar controls.
+            // A real pointerdown needs to reach the chosen canvas.
+            if (candidate && document.elementFromPoint(x, y) === candidate.canvas) {
               hit = { piece: candidate, x, y };
               break;
             }
@@ -637,9 +639,10 @@ test.describe('Hard-mode piece drift', () => {
     const result = await page.evaluate(() => {
       const g = window.__game;
       const p = g.pieces[g.__testPieceIndex];
-      return { vx: p.driftVx, vy: p.driftVy };
+      return { grabbed: g.dragging?.group[0] === p, vx: p.driftVx, vy: p.driftVy };
     });
     await page.mouse.up();
+    expect(result.grabbed).toBe(true);
     expect(result.vx).toBe(0);
     expect(result.vy).toBe(0);
   });
