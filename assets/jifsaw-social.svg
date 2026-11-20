@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Jifsaw — A jigsaw that won't sit still</title>
+  <desc id="desc">A vivid looping ribbon cut into four interlocking puzzle pieces, with one piece drifting out of place.</desc>
+  <defs>
+    <radialGradient id="background" cx="86%" cy="45%" r="78%">
+      <stop stop-color="#251b47"/>
+      <stop offset="1" stop-color="#0e0b1a"/>
+    </radialGradient>
+    <linearGradient id="colour" x1="0" y1="1" x2="1" y2="0">
+      <stop stop-color="#22d3ee"/>
+      <stop offset=".48" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#f472b6"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#a5f3fc"/>
+      <stop offset=".35" stop-color="#22d3ee"/>
+      <stop offset=".7" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#f9a8d4"/>
+    </linearGradient>
+    <g id="art">
+      <rect width="380" height="380" fill="url(#colour)"/>
+      <path d="M-40 315Q95 400 235 249T420 30" fill="none" stroke="#0e0b1a" stroke-opacity=".22" stroke-width="100"/>
+      <ellipse cx="190" cy="190" rx="115" ry="118" fill="none" stroke="#251742" stroke-width="67"/>
+      <ellipse cx="190" cy="183" rx="115" ry="118" fill="none" stroke="url(#ribbon)" stroke-width="48"/>
+      <path d="M170 135L241 180L170 225Z" fill="#fff"/>
+      <path d="M-15 45L80 -15M300 405L405 300" stroke="#fff" stroke-opacity=".15" stroke-width="20"/>
+    </g>
+    <path id="tl" d="M0 16Q0 0 16 0H190V66C151 43 151 120 190 97V190H126C151 151 74 151 97 190H0Z"/>
+    <path id="tr" d="M190 0H364Q380 0 380 16V190H315C338 229 261 229 284 190H190V97C151 120 151 43 190 66Z"/>
+    <path id="bl" d="M0 190H97C74 151 151 151 126 190H190V255C229 232 229 309 190 286V380H16Q0 380 0 364Z"/>
+    <path id="br" d="M190 190H284C261 229 338 229 315 190H380V364Q380 380 364 380H190V286C229 309 229 232 190 255Z"/>
+    <clipPath id="ctl"><use href="#tl"/></clipPath>
+    <clipPath id="ctr"><use href="#tr"/></clipPath>
+    <clipPath id="cbl"><use href="#bl"/></clipPath>
+    <clipPath id="cbr"><use href="#br"/></clipPath>
+  </defs>
+  <rect width="1200" height="630" fill="url(#background)"/>
+  <path d="M0 601H1200" stroke="#fff" stroke-opacity=".08"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="70" y="180" fill="#f4f2fb" font-size="112" font-weight="800" letter-spacing="-7">Jifsaw<tspan fill="#22d3ee">.</tspan></text>
+    <text x="76" y="274" fill="#f4f2fb" font-size="47" font-weight="700" letter-spacing="-1.5">A jigsaw that</text>
+    <text x="76" y="332" fill="#f4f2fb" font-size="47" font-weight="700" letter-spacing="-1.5">won't sit still.</text>
+    <text x="78" y="391" fill="#b9b0ce" font-size="24">GIFs. In pieces. Still moving.</text>
+    <text x="78" y="526" fill="#f4f2fb" font-size="25" font-weight="600">jifsaw.com <tspan fill="#22d3ee">↗</tspan></text>
+  </g>
+  <g transform="translate(714 139) rotate(-8 190 190)">
+    <use href="#tr" fill="none" stroke="#b9b0ce" stroke-opacity=".2" stroke-width="2" stroke-dasharray="6 8"/>
+    <g clip-path="url(#ctl)"><use href="#art"/></g>
+    <g clip-path="url(#cbl)"><use href="#art"/></g>
+    <g clip-path="url(#cbr)"><use href="#art"/></g>
+    <g fill="none" stroke="#0e0b1a" stroke-width="5" stroke-linejoin="round">
+      <use href="#tl"/><use href="#bl"/><use href="#br"/>
+    </g>
+    <g transform="translate(28 -40) rotate(13 285 95)">
+      <g clip-path="url(#ctr)"><use href="#art"/></g>
+      <use href="#tr" fill="none" stroke="#0e0b1a" stroke-width="5" stroke-linejoin="round"/>
+    </g>
+  </g>
+  <g fill="none" stroke="#22d3ee" stroke-width="3" stroke-linecap="round">
+    <path d="M716 104L706 79M745 91L744 66M689 124L670 108"/>
+    <path d="M1073 540Q1022 573 969 552" stroke-opacity=".65"/>
+    <path d="M982 545L967 552L975 567" stroke-opacity=".65"/>
+  </g>
+</svg>
