@@ -8,6 +8,14 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 10000,
   },
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' } },
+    {
+      name: 'firefox',
+      use: { browserName: 'firefox' },
+      grep: /(source and difficulty stages|theme carousel arrows|switching back to a theme|category selection stays|search form submits|loading is announced|search request failures|blank search|source controls stay)/,
+    },
+  ],
   use: {
     baseURL: 'http://localhost:5173',
   },

@@ -44,6 +44,29 @@ test('setup screen loads with no horizontal overflow at desktop width', async ({
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
+test('source and difficulty stages sit side by side on desktop and stack on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.goto('/');
+  const desktop = await page.evaluate(() => {
+    const explore = document.querySelector('.theme-panel').getBoundingClientRect();
+    const topics = document.querySelector('.topic-panel').getBoundingClientRect();
+    return { exploreX: explore.x, exploreY: explore.y, topicsX: topics.x, topicsY: topics.y };
+  });
+  expect(desktop.topicsX).toBeGreaterThan(desktop.exploreX);
+  expect(Math.abs(desktop.topicsY - desktop.exploreY)).toBeLessThan(2);
+  await expect(page.locator('#startPuzzleBtn')).toBeVisible();
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  const mobile = await page.evaluate(() => ({
+    exploreY: document.querySelector('.theme-panel').getBoundingClientRect().y,
+    topicsY: document.querySelector('.topic-panel').getBoundingClientRect().y,
+    difficultyY: document.querySelector('#difficultyGroup').getBoundingClientRect().y,
+  }));
+  expect(mobile.topicsY).toBeGreaterThan(mobile.exploreY);
+  expect(mobile.difficultyY).toBeGreaterThan(mobile.topicsY);
+  await expect(page.locator('#startPuzzleBtn')).toBeVisible();
+});
+
 for (const width of [320, 375, 414]) {
   test(`setup screen has no horizontal overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
@@ -65,12 +88,37 @@ test('theme carousel arrows cycle through themes', async ({ page }) => {
   await expect(stage).toHaveAttribute('data-current', 'random');
 });
 
-test('category selection starts a matching puzzle and New GIF repeats the topic', async ({ page }) => {
+test('switching back to a theme clears the topic selection', async ({ page }) => {
   await page.goto('/');
+  await page.locator('[data-topic="animals"]').click();
+  await expect(page.locator('[data-topic="animals"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#themeNext').click();
+  await page.locator('#themeStage').click();
+  await expect(page.locator('#activeSource')).toHaveText('Selected: Trending');
+  await expect(page.locator('[data-topic="animals"]')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#themeStage')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
+
+  const trending = page.waitForRequest(request => request.url().includes('/trending'));
+  await page.locator('#startPuzzleBtn').click();
+  await trending;
+});
+
+test('category selection stays in setup until start, then New GIF repeats the topic', async ({ page }) => {
+  await page.goto('/');
+  const requests = [];
+  page.on('request', request => requests.push(request.url()));
+  await page.locator('[data-topic="animals"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#activeSource')).toHaveText('Selected: Animals');
+  await expect(page.locator('[data-topic="animals"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
+  expect(requests.some(url => url.includes('/search'))).toBe(false);
+
   const firstSearch = page.waitForRequest((request) =>
     request.url().includes('/search') && new URL(request.url()).searchParams.get('q') === 'animals'
   );
-  await page.locator('#gifCategory').selectOption('animals');
+  await page.locator('#startPuzzleBtn').click();
   await firstSearch;
   await expect(page.locator('#game')).not.toHaveClass(/hidden/);
   await expect(page.locator('#loadingOverlay')).toHaveClass(/hidden/);
@@ -87,11 +135,18 @@ test('category selection starts a matching puzzle and New GIF repeats the topic'
 
 test('search form submits with Enter and uses the entered topic', async ({ page }) => {
   await page.goto('/');
+  const requests = [];
+  page.on('request', request => requests.push(request.url()));
+  await page.locator('#gifSearch').fill('cats');
+  await page.locator('#gifSearch').press('Enter');
+  await expect(page.locator('#activeSource')).toHaveText('Selected: cats');
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
+  expect(requests.some(url => url.includes('/search'))).toBe(false);
+
   const search = page.waitForRequest((request) =>
     request.url().includes('/search') && new URL(request.url()).searchParams.get('q') === 'cats'
   );
-  await page.locator('#gifSearch').fill('cats');
-  await page.locator('#gifSearch').press('Enter');
+  await page.locator('#startPuzzleBtn').click();
   await search;
   await expect(page.locator('#game')).not.toHaveClass(/hidden/);
 });
@@ -100,6 +155,7 @@ test('loading is announced and an empty search shows a useful error', async ({ p
   await page.goto('/');
   await page.locator('#gifSearch').fill('slow');
   await page.locator('#gifSearch').press('Enter');
+  await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#loadingText')).toHaveAttribute('role', 'status');
   await expect(page.locator('#loadingText')).toContainText('Finding slow GIFs');
   await expect(page.locator('#game')).not.toHaveClass(/hidden/);
@@ -108,6 +164,7 @@ test('loading is announced and an empty search shows a useful error', async ({ p
   await page.locator('#newBtn').click();
   await page.locator('#gifSearch').fill('empty');
   await page.locator('#gifSearch').press('Enter');
+  await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#searchStatus')).toContainText('No GIFs found for “empty”');
   await expect(page.locator('#searchStatus')).toHaveAttribute('aria-live', 'polite');
 });
@@ -116,7 +173,36 @@ test('search request failures are shown on the setup screen', async ({ page }) =
   await page.goto('/');
   await page.locator('#gifSearch').fill('failure');
   await page.locator('#gifSearch').press('Enter');
+  await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#searchStatus')).toContainText('Giphy proxy request failed (503)');
+});
+
+test('blank search is rejected without requesting a GIF', async ({ page }) => {
+  await page.goto('/');
+  const requests = [];
+  page.on('request', request => requests.push(request.url()));
+  await page.locator('#gifSearch').fill('   ');
+  await page.locator('#gifSearch').press('Enter');
+  await expect(page.locator('#searchStatus')).toContainText('Enter a topic to search for.');
+  expect(requests.some(url => url.includes('/search'))).toBe(false);
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
+});
+
+test('source controls stay consistent while a GIF request is loading', async ({ page }) => {
+  await page.goto('/');
+  const requests = [];
+  page.on('request', request => requests.push(request.url()));
+  await page.locator('#gifSearch').fill('slow');
+  await page.locator('#gifSearch').press('Enter');
+  await page.locator('#startPuzzleBtn').click();
+  await expect(page.locator('#setup')).toHaveAttribute('inert', '');
+
+  // Even a scripted interaction cannot change the selected source mid-request.
+  await page.locator('[data-topic="animals"]').evaluate((button) => button.click());
+  await expect(page.locator('#activeSource')).toHaveText('Selected: slow');
+  await expect(page.locator('[data-topic="animals"]')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#game')).not.toHaveClass(/hidden/);
+  expect(requests.filter(url => url.includes('/search')).map(url => new URL(url).searchParams.get('q'))).toEqual(['slow']);
 });
 
 test('difficulty slider selects Hard via its tick label', async ({ page }) => {
@@ -130,6 +216,8 @@ test('starting a puzzle deals all pieces fully inside the viewport', async ({ pa
   await page.goto('/');
   await page.locator('[data-value="5x4"]').click(); // Hard = 20 pieces, tightest fit
   await page.locator('#themeStage').click();
+  await expect(page.locator('#activeSource')).toHaveText('Selected: Classic');
+  await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
 
   // Let the deal-out animation settle.
@@ -151,6 +239,7 @@ test('starting a puzzle deals all pieces fully inside the viewport', async ({ pa
 test('New button clears the board and tray', async ({ page }) => {
   await page.goto('/');
   await page.locator('#themeStage').click();
+  await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
 
   await page.locator('#newBtn').click();
@@ -294,6 +383,51 @@ test.describe('off-board piece joining', () => {
     expect(result.locked).toBe(true);
   });
 
+  // Issue #1: pieces within the upright tolerance (~6°) are allowed to join,
+  // but used to keep their small tilt afterwards, so the seam between them
+  // was visibly off. A join must leave every member of the merged group at 0°.
+  test('joining straightens slightly tilted pieces so the seam lines up', async ({ page }) => {
+    await buildTestGame(page);
+    const result = await page.evaluate(() => {
+      const g = window.__game;
+      const p00 = g.pieces.find(p => p.r === 0 && p.c === 0);
+      const p01 = g.pieces.find(p => p.r === 0 && p.c === 1);
+      window.__place(p00, 300, 400, -4);
+      const dx = p01.home.x - p00.home.x, dy = p01.home.y - p00.home.y;
+      window.__place(p01, 300 + dx, 400 + dy, 5);
+      const joined = g._tryJoinOffBoard(p00);
+      return { joined, rots: [p00.rot, p01.rot], transforms: [p00.canvas.style.transform, p01.canvas.style.transform] };
+    });
+    expect(result.joined).toBe(true);
+    expect(result.rots).toEqual([0, 0]);
+    result.transforms.forEach(t => expect(t === '' || /rotate\(0(deg)?\)/.test(t)).toBe(true));
+  });
+
+  // Issue #1: only the grabbed piece used to be tested against neighbours, so
+  // a group dropped with a *different* member next to another group's piece
+  // would not join.
+  test('a group joins when a piece other than the grabbed one meets a neighbour', async ({ page }) => {
+    await buildTestGame(page);
+    const result = await page.evaluate(() => {
+      const g = window.__game;
+      const p00 = g.pieces.find(p => p.r === 0 && p.c === 0);
+      const p01 = g.pieces.find(p => p.r === 0 && p.c === 1);
+      const p02 = g.pieces.find(p => p.r === 0 && p.c === 2);
+      window.__place(p00, 300, 400);
+      const d01x = p01.home.x - p00.home.x, d01y = p01.home.y - p00.home.y;
+      window.__place(p01, 300 + d01x, 400 + d01y);
+      g._tryJoinOffBoard(p00); // group {p00, p01}
+      const d02x = p02.home.x - p00.home.x, d02y = p02.home.y - p00.home.y;
+      window.__place(p02, 300 + d02x, 400 + d02y);
+      // p00 is grabbed, but only p01 touches p02.
+      const joined = g._tryJoinOffBoard(p00);
+      return { joined, groupSize: p00.group.length, sameGroup: p00.group === p02.group };
+    });
+    expect(result.joined).toBe(true);
+    expect(result.sameGroup).toBe(true);
+    expect(result.groupSize).toBe(3);
+  });
+
   test('non-adjacent pieces placed close together do not join', async ({ page }) => {
     await buildTestGame(page);
     const result = await page.evaluate(() => {
@@ -331,6 +465,7 @@ test.describe('mute toggle', () => {
   async function startAnyPuzzle(page) {
     await page.goto('/');
     await page.locator('#themeStage').click();
+    await page.locator('#startPuzzleBtn').click();
     await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
   }
 
