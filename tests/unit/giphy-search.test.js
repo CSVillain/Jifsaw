@@ -40,7 +40,10 @@ describe('Giphy.searchPick', () => {
     expect(requests).toHaveLength(1);
     expect(requests[0].searchParams.get('q')).toBe('nature');
     expect(requests[0].searchParams.get('limit')).toBe('25');
-    expect(Number(requests[0].searchParams.get('offset'))).toBeLessThanOrEqual(200);
+    const offset = Number(requests[0].searchParams.get('offset'));
+    expect(Number.isInteger(offset)).toBe(true);
+    expect(offset).toBeGreaterThanOrEqual(0);
+    expect(offset).toBeLessThanOrEqual(200);
   });
 
   it('rejects blank and overlong topics without making a request', async () => {

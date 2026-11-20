@@ -1,11 +1,13 @@
 (() => {
   const setupSection = document.getElementById('setup');
+  const setupControls = setupSection.querySelectorAll('[data-setup-controls]');
   const searchStatus = document.getElementById('searchStatus');
-  const gifCategory = document.getElementById('gifCategory');
+  const activeSourceLabel = document.getElementById('activeSource');
+  const categoryOptions = Array.from(document.querySelectorAll('.category-option'));
   const gifSearchForm = document.getElementById('gifSearchForm');
   const gifSearch = document.getElementById('gifSearch');
+  const startPuzzleBtn = document.getElementById('startPuzzleBtn');
   const difficultyGroup = document.getElementById('difficultyGroup');
-  const themeGroup = document.getElementById('themeGroup');
   const diffTrack = document.getElementById('diffTrack');
   const diffHandle = document.getElementById('diffHandle');
   const diffFill = document.getElementById('diffFill');
@@ -89,6 +91,7 @@
   let stopConfetti = null;
   let lastGif = null;
   let gifRequestInFlight = false;
+  let activeSelection = { type: 'theme', value: 'classic' };
 
   function setStatus(msg, isError = false) {
     searchStatus.textContent = msg;
@@ -220,8 +223,7 @@
     random: 'Rolling the dice…',
   };
 
-  // GIF-theme carousel: a card you swipe/arrow-key through to browse, and
-  // tap to commit and start.
+  // GIF-theme carousel: browse with the arrows or swipe, then tap to select.
   const THEME_ORDER = ['classic', 'trending', 'random'];
   const themeStage = document.getElementById('themeStage');
   const themeFaces = Array.from(themeStage.querySelectorAll('.theme-face'));
@@ -240,6 +242,8 @@
     inFace.classList.add('is-active');
     themeIndex = wrapped;
     themeStage.dataset.current = THEME_ORDER[themeIndex];
+    themeStage.setAttribute('aria-label', `Select ${THEME_ORDER[themeIndex]} theme; use arrow keys to browse`);
+    themeStage.setAttribute('aria-pressed', String(activeSelection.type === 'theme' && activeSelection.value === THEME_ORDER[themeIndex]));
   }
 
   themePrevBtn.addEventListener('click', () => themeShow(themeIndex - 1, -1));
@@ -257,25 +261,29 @@
     if (Math.abs(e.clientX - themeDragStartX) > 8) themeDragMoved = true;
   });
   themeStage.addEventListener('pointerup', (e) => {
+    if (gifRequestInFlight) return;
     if (themeDragStartX === null) return;
     const delta = e.clientX - themeDragStartX;
     themeDragStartX = null;
     if (Math.abs(delta) > 50) {
       themeShow(themeIndex + (delta < 0 ? 1 : -1), delta < 0 ? 1 : -1);
     } else if (!themeDragMoved) {
-      startFromTheme(THEME_ORDER[themeIndex]);
+      selectTheme(THEME_ORDER[themeIndex]);
     }
   });
   themeStage.addEventListener('keydown', (e) => {
+    if (gifRequestInFlight) return;
     if (e.key === 'ArrowRight') { themeShow(themeIndex + 1, 1); e.preventDefault(); }
     else if (e.key === 'ArrowLeft') { themeShow(themeIndex - 1, -1); e.preventDefault(); }
-    else if (e.key === 'Enter' || e.key === ' ') { startFromTheme(THEME_ORDER[themeIndex]); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === ' ') { selectTheme(THEME_ORDER[themeIndex]); e.preventDefault(); }
   });
   themeStage.dataset.current = THEME_ORDER[themeIndex];
 
   async function startFromSelection(selection) {
     if (gifRequestInFlight) return;
     gifRequestInFlight = true;
+    setupControls.forEach(controls => { controls.inert = true; });
+    startPuzzleBtn.disabled = true;
     const loadingMessage = selection.type === 'theme'
       ? THEME_LOADING_TEXT[selection.value] || 'Fetching a GIF…'
       : `Finding ${selection.label} GIFs…`;
@@ -292,32 +300,51 @@
     } finally {
       hideLoading();
       gifRequestInFlight = false;
+      setupControls.forEach(controls => { controls.inert = false; });
+      startPuzzleBtn.disabled = false;
     }
   }
 
-  function clearTopicControls() {
-    gifCategory.value = '';
-    gifSearch.value = '';
+  function selectSource(selection) {
+    if (gifRequestInFlight) return;
+    activeSelection = selection;
+    const isCategory = selection.type === 'topic' && selection.category === true;
+    gifSearch.value = selection.type === 'topic' && !isCategory ? selection.query : '';
+    categoryOptions.forEach((option) => {
+      const selected = selection.type === 'topic' && option.dataset.topic === selection.query;
+      option.setAttribute('aria-pressed', String(selected));
+    });
+    themeStage.setAttribute('aria-pressed', String(selection.type === 'theme' && THEME_ORDER[themeIndex] === selection.value));
+    const selectedName = selection.type === 'theme'
+      ? selection.value[0].toUpperCase() + selection.value.slice(1)
+      : selection.label;
+    activeSourceLabel.textContent = `Selected: ${selectedName}`;
+    setStatus('');
   }
 
-  function startFromTheme(theme) {
-    clearTopicControls();
-    return startFromSelection({ type: 'theme', value: theme });
+  function selectTheme(theme) {
+    selectSource({ type: 'theme', value: theme });
   }
 
-  gifCategory.addEventListener('change', () => {
-    const category = Giphy.CATEGORIES.find(item => item.query === gifCategory.value);
-    if (!category) return;
-    gifSearch.value = '';
-    startFromSelection({ type: 'topic', query: category.query, label: category.label });
+  categoryOptions.forEach((option) => {
+    option.addEventListener('click', () => {
+      const category = Giphy.CATEGORIES.find(item => item.query === option.dataset.topic);
+      if (category) selectSource({ type: 'topic', query: category.query, label: category.label, category: true });
+    });
   });
 
   gifSearchForm.addEventListener('submit', (event) => {
     event.preventDefault();
     const query = gifSearch.value.trim();
-    gifCategory.value = '';
-    startFromSelection({ type: 'topic', query, label: query || 'your search' });
+    if (!query) {
+      setStatus('Enter a topic to search for.', true);
+      gifSearch.focus();
+      return;
+    }
+    selectSource({ type: 'topic', query, label: query });
   });
+
+  startPuzzleBtn.addEventListener('click', () => startFromSelection(activeSelection));
 
   function showLoading(text) {
     loadingText.textContent = text;
@@ -463,6 +490,6 @@
   });
   newThemeBtn.addEventListener('click', () => {
     winOverlay.classList.add('hidden');
-    if (lastGif) startFromSelection(lastGif.selection);
+    if (lastGif) startFromSelection(activeSelection);
   });
 })();

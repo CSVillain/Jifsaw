@@ -614,46 +614,54 @@ const Puzzle = (() => {
              (a.c === b.c && Math.abs(a.r - b.r) === 1);
     }
 
-    // After a drag that didn't snap onto the board, see if the dragged
-    // group landed close enough to another upright group to join it. Join
-    // is a pure translation (no rotation blending needed, since both sides
-    // must already be upright) — the dragged group's pieces are nudged so
-    // the matched pair lines up exactly, then the two groups' piece arrays
-    // are merged into one shared array.
+    // After a drag that didn't snap onto the board, see if any piece of the
+    // dragged group landed close enough to a neighbouring upright piece of
+    // another group to join it. Every member is checked, not just the piece
+    // that was grabbed. Join is a translation plus straightening: the
+    // dragged group is nudged so the matched pair lines up exactly, every
+    // piece of the merged group is reset to 0° (each turns about its own
+    // centre, so the alignment holds), then the two groups' piece arrays are
+    // merged into one shared array.
     _tryJoinOffBoard(draggedPiece) {
-      const dragRect = draggedPiece.canvas.getBoundingClientRect();
-      const dragCx = dragRect.left + dragRect.width / 2;
-      const dragCy = dragRect.top + dragRect.height / 2;
-      if (!this._isUpright(draggedPiece.rot)) return false;
+      const centreOf = piece => {
+        const rect = piece.canvas.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      };
 
-      for (const other of this.pieces) {
-        if (other.locked || other.group === draggedPiece.group) continue;
-        if (!this._isNeighbor(draggedPiece, other) || !this._isUpright(other.rot)) continue;
+      for (const mine of draggedPiece.group) {
+        if (!this._isUpright(mine.rot)) continue;
+        const mineC = centreOf(mine);
 
-        const otherRect = other.canvas.getBoundingClientRect();
-        const otherCx = otherRect.left + otherRect.width / 2;
-        const otherCy = otherRect.top + otherRect.height / 2;
-        const wantDx = other.home.x - draggedPiece.home.x;
-        const wantDy = other.home.y - draggedPiece.home.y;
-        const actualDx = otherCx - dragCx, actualDy = otherCy - dragCy;
+        for (const other of this.pieces) {
+          if (other.locked || other.group === draggedPiece.group) continue;
+          if (!this._isNeighbor(mine, other) || !this._isUpright(other.rot)) continue;
 
-        if (Math.hypot(actualDx - wantDx, actualDy - wantDy) < this.snapDist) {
-          // Shift every piece in the dragged group by the same correction so
-          // the whole cluster lands in perfect alignment, not just the one
-          // piece that happened to be checked.
-          const correctionX = (otherCx - wantDx) - dragCx;
-          const correctionY = (otherCy - wantDy) - dragCy;
-          draggedPiece.group.forEach(gp => {
-            const left = (parseFloat(gp.canvas.style.left) || 0) + correctionX;
-            const top = (parseFloat(gp.canvas.style.top) || 0) + correctionY;
-            gp.canvas.style.transition = 'left 0.15s ease, top 0.15s ease';
-            gp.canvas.style.left = left + 'px';
-            gp.canvas.style.top = top + 'px';
-            gp.canvas.addEventListener('transitionend', () => { gp.canvas.style.transition = ''; }, { once: true });
-          });
-          const merged = [...new Set([...draggedPiece.group, ...other.group])];
-          merged.forEach(gp => { gp.group = merged; });
-          return true;
+          const otherC = centreOf(other);
+          const wantDx = other.home.x - mine.home.x;
+          const wantDy = other.home.y - mine.home.y;
+          const actualDx = otherC.x - mineC.x, actualDy = otherC.y - mineC.y;
+
+          if (Math.hypot(actualDx - wantDx, actualDy - wantDy) < this.snapDist) {
+            // Shift every piece in the dragged group by the same correction so
+            // the whole cluster lands in perfect alignment, not just the one
+            // piece that happened to be checked.
+            const correctionX = (otherC.x - wantDx) - mineC.x;
+            const correctionY = (otherC.y - wantDy) - mineC.y;
+            const merged = [...new Set([...draggedPiece.group, ...other.group])];
+            const moving = new Set(draggedPiece.group);
+            merged.forEach(gp => {
+              gp.canvas.style.transition = 'left 0.15s ease, top 0.15s ease, transform 0.15s ease';
+              if (moving.has(gp)) {
+                gp.canvas.style.left = ((parseFloat(gp.canvas.style.left) || 0) + correctionX) + 'px';
+                gp.canvas.style.top = ((parseFloat(gp.canvas.style.top) || 0) + correctionY) + 'px';
+              }
+              gp.rot = 0;
+              gp.canvas.style.transform = 'rotate(0deg)';
+              gp.canvas.addEventListener('transitionend', () => { gp.canvas.style.transition = ''; }, { once: true });
+              gp.group = merged;
+            });
+            return true;
+          }
         }
       }
       return false;
