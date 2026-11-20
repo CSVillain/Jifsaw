@@ -3,8 +3,9 @@
   const searchStatus = document.getElementById('searchStatus');
   const gifCategoryGroup = document.getElementById('gifCategoryGroup');
   const categoryButtons = Array.from(gifCategoryGroup.querySelectorAll('.topic-card'));
-  const topicStartButton = document.getElementById('topicStartButton');
-  const topicStartLabel = document.getElementById('topicStartLabel');
+  const startPuzzleButton = document.getElementById('startPuzzleButton');
+  const startPuzzleLabel = document.getElementById('startPuzzleLabel');
+  const selectedSourceSummary = document.getElementById('selectedSourceSummary');
   const gifSearchForm = document.getElementById('gifSearchForm');
   const gifSearch = document.getElementById('gifSearch');
   const difficultyGroup = document.getElementById('difficultyGroup');
@@ -243,6 +244,7 @@
     inFace.classList.add('is-active');
     themeIndex = wrapped;
     themeStage.dataset.current = THEME_ORDER[themeIndex];
+    selectTheme(THEME_ORDER[themeIndex]);
   }
 
   themePrevBtn.addEventListener('click', () => themeShow(themeIndex - 1, -1));
@@ -266,13 +268,13 @@
     if (Math.abs(delta) > 50) {
       themeShow(themeIndex + (delta < 0 ? 1 : -1), delta < 0 ? 1 : -1);
     } else if (!themeDragMoved) {
-      startFromTheme(THEME_ORDER[themeIndex]);
+      selectTheme(THEME_ORDER[themeIndex]);
     }
   });
   themeStage.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight') { themeShow(themeIndex + 1, 1); e.preventDefault(); }
     else if (e.key === 'ArrowLeft') { themeShow(themeIndex - 1, -1); e.preventDefault(); }
-    else if (e.key === 'Enter' || e.key === ' ') { startFromTheme(THEME_ORDER[themeIndex]); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === ' ') { selectTheme(THEME_ORDER[themeIndex]); e.preventDefault(); }
   });
   themeStage.dataset.current = THEME_ORDER[themeIndex];
 
@@ -298,26 +300,35 @@
     }
   }
 
-  let selectedCategory = null;
+  let selectedSource = { type: 'theme', value: 'classic', label: 'Classic' };
 
   function clearCategorySelection() {
-    selectedCategory = null;
     categoryButtons.forEach((button, index) => {
       button.setAttribute('aria-checked', 'false');
       button.tabIndex = index === 0 ? 0 : -1;
       button.classList.remove('is-selected');
     });
-    topicStartButton.disabled = true;
-    topicStartLabel.textContent = 'Choose a category to begin';
   }
 
-  function clearTopicControls() {
-    clearCategorySelection();
+  function updateSelectedSource(selection, summary) {
+    selectedSource = selection;
+    selectedSourceSummary.textContent = summary;
+    startPuzzleLabel.textContent = `Start ${selection.label || selection.value} puzzle`;
+    themeStage.classList.toggle('is-selected', selection.type === 'theme');
+    themeStage.setAttribute('aria-pressed', String(selection.type === 'theme'));
+    if (selection.type === 'theme') themeStage.setAttribute('aria-label', `Select ${selection.label} GIFs. Use arrow keys to browse.`);
+    if (selection.type !== 'topic') clearCategorySelection();
+    setStatus('');
+  }
+
+  function selectTheme(theme) {
+    const label = theme.charAt(0).toUpperCase() + theme.slice(1);
     gifSearch.value = '';
+    updateSelectedSource({ type: 'theme', value: theme, label }, `${label} GIFs`);
   }
 
   function chooseCategory(button, moveFocus = false) {
-    selectedCategory = {
+    const selection = {
       type: 'topic',
       query: button.dataset.query,
       label: button.dataset.label,
@@ -328,10 +339,10 @@
       item.tabIndex = isSelected ? 0 : -1;
       item.classList.toggle('is-selected', isSelected);
     });
+    themeStage.classList.remove('is-selected');
+    themeStage.setAttribute('aria-pressed', 'false');
     gifSearch.value = '';
-    topicStartButton.disabled = false;
-    topicStartLabel.textContent = `Start ${selectedCategory.label} puzzle`;
-    setStatus('');
+    updateSelectedSource(selection, `${selection.label} GIFs`);
     if (moveFocus) button.focus();
   }
 
@@ -349,21 +360,18 @@
     });
   });
 
-  topicStartButton.addEventListener('click', () => {
-    if (selectedCategory) startFromSelection(selectedCategory);
+  startPuzzleButton.addEventListener('click', () => {
+    if (selectedSource) startFromSelection(selectedSource);
   });
-
-  function startFromTheme(theme) {
-    clearTopicControls();
-    return startFromSelection({ type: 'theme', value: theme });
-  }
 
   gifSearchForm.addEventListener('submit', (event) => {
     event.preventDefault();
     const query = gifSearch.value.trim();
     if (!query) return;
     clearCategorySelection();
-    startFromSelection({ type: 'topic', query, label: query });
+    themeStage.classList.remove('is-selected');
+    themeStage.setAttribute('aria-pressed', 'false');
+    updateSelectedSource({ type: 'topic', query, label: query }, `“${query}” GIFs`);
   });
 
   function showLoading(text) {
