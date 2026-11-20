@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true">
@@ -23,14 +23,26 @@
     </div>
   </header>
 
-  <section id="setup" class="setup">
-    <div class="choice-group" id="themeGroup">
-      <span class="choice-label"></span>
+  <section id="setup" class="setup" aria-labelledby="setupTitle">
+    <div class="setup-intro">
+      <h2 id="setupTitle">Build your puzzle</h2>
+      <p>Choose what to play, set the challenge, then dive in.</p>
+    </div>
+    <div class="setup-grid">
+      <section class="setup-stage source-stage" aria-labelledby="sourceStageTitle">
+        <div class="stage-heading">
+          <span class="stage-number">01</span>
+          <div><h3 class="stage-title" id="sourceStageTitle">Choose your GIF</h3><p class="stage-note">Pick a familiar theme or a topic of your own.</p></div>
+        </div>
+        <div class="theme-source">
+          <span class="source-kicker">Jifsaw picks</span>
+              <div class="choice-group" id="themeGroup">
+      
       <div class="theme-dial">
         <button type="button" class="theme-arrow" id="themePrev" aria-label="Previous theme">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <div class="theme-stage" id="themeStage" role="button" tabindex="0" aria-label="Tap to start with the shown theme, arrow keys to browse">
+        <div class="theme-stage is-selected" id="themeStage" role="button" tabindex="0" aria-pressed="true" aria-label="Choose the shown GIF theme. Use arrow keys to browse">
           <div class="theme-face is-active" data-value="classic">
             <span class="theme-icon">🏆</span>
             <span class="theme-name">Classic</span>
@@ -53,10 +65,13 @@
       </div>
     </div>
 
-    <section class="topic-controls" aria-labelledby="topicHeading">
+
+          <p class="theme-caption">Swipe or tap the arrows to choose</p>
+        </div>
+        <div class="topic-source">    <section class="topic-controls" aria-labelledby="topicHeading">
       <div class="topic-heading">
-        <h2 class="topic-title" id="topicHeading">Pick your GIF vibe</h2>
-        <p class="topic-intro">Choose a category, then start your puzzle.</p>
+        <h2 class="topic-title" id="topicHeading">Categories</h2>
+        <p class="topic-intro">Or explore a category</p>
       </div>
       <div id="gifCategoryGroup" class="topic-grid" role="radiogroup" aria-label="GIF categories">
         <button type="button" class="topic-card" role="radio" aria-checked="false" tabindex="0" data-query="animals" data-label="Animals">
@@ -78,9 +93,6 @@
           <span class="topic-icon" aria-hidden="true">🏅</span><span class="topic-name">Sports</span>
         </button>
       </div>
-      <button id="topicStartButton" class="topic-start-button" type="button" disabled>
-        <span id="topicStartLabel">Choose a category to begin</span><span aria-hidden="true">→</span>
-      </button>
       <div class="topic-divider" aria-hidden="true"><span>or search for a topic</span></div>
       <form id="gifSearchForm" class="topic-search">
         <label class="topic-label" for="gifSearch">Make it your own</label>
@@ -89,12 +101,19 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
             <input id="gifSearch" class="topic-input" type="search" maxlength="50" autocomplete="off" placeholder="Try cats, space, or dancing" required>
           </div>
-          <button class="topic-search-button" type="submit">Search</button>
+          <button class="topic-search-button" type="submit">Use search</button>
         </div>
       </form>
     </section>
 
-<div class="choice-group" id="difficultyGroup" data-value="3x3">
+</div>
+      </section>
+      <section class="setup-stage challenge-stage" aria-labelledby="challengeStageTitle">
+        <div class="stage-heading">
+          <span class="stage-number">02</span>
+          <div><h3 class="stage-title" id="challengeStageTitle">Set the challenge</h3><p class="stage-note">How many pieces do you want to wrangle?</p></div>
+        </div>
+        <div class="choice-group" id="difficultyGroup" data-value="3x3">
       <div class="diff-slider">
         <div class="diff-track" id="diffTrack">
           <div class="diff-fill" id="diffFill"></div>
@@ -111,9 +130,18 @@
       <p class="best-time-label" id="setupBestTime"></p>
     </div>
 
-    <p id="searchStatus" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
-  </section>
 
+        <div class="selected-source" aria-live="polite">
+          <span class="selected-source-kicker">Your puzzle</span>
+          <strong id="selectedSourceSummary">Classic GIFs</strong>
+        </div>
+        <button id="startPuzzleButton" class="topic-start-button" type="button">
+          <span id="startPuzzleLabel">Start Classic puzzle</span><span aria-hidden="true">→</span>
+        </button>
+        <p id="searchStatus" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
+      </section>
+    </div>
+  </section>
   <div id="loadingOverlay" class="loading-overlay hidden">
     <div class="loading-card">
       <div class="loading-spinner"><span></span><span></span><span></span><span></span></div>
@@ -174,7 +202,7 @@
   <script src="sound.js?v=2"></script>
   <script src="storage.js"></script>
   <script src="puzzle.js?v=12"></script>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 
   <footer class="site-footer">
     <p><a href="https://gtbr.co.uk/" target="_blank" rel="noopener">GTBR</a> side-quest 🪿 · Powered by <a href="https://giphy.com/" target="_blank" rel="noopener">GIPHY</a></p>
