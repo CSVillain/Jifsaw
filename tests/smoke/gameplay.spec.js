@@ -65,12 +65,18 @@ test('theme carousel arrows cycle through themes', async ({ page }) => {
   await expect(stage).toHaveAttribute('data-current', 'random');
 });
 
-test('category selection starts a matching puzzle and New GIF repeats the topic', async ({ page }) => {
+test('category cards require confirmation, start the selected topic, and New GIF repeats it', async ({ page }) => {
   await page.goto('/');
+  const animalCard = page.getByRole('radio', { name: 'Animals' });
+  await animalCard.click();
+  await expect(animalCard).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
+  await expect(page.locator('#topicStartButton')).toBeEnabled();
+
   const firstSearch = page.waitForRequest((request) =>
     request.url().includes('/search') && new URL(request.url()).searchParams.get('q') === 'animals'
   );
-  await page.locator('#gifCategory').selectOption('animals');
+  await page.locator('#topicStartButton').click();
   await firstSearch;
   await expect(page.locator('#game')).not.toHaveClass(/hidden/);
   await expect(page.locator('#loadingOverlay')).toHaveClass(/hidden/);
@@ -83,6 +89,17 @@ test('category selection starts a matching puzzle and New GIF repeats the topic'
   );
   await page.locator('#newThemeBtn').click();
   await repeatedSearch;
+});
+
+test('category cards support arrow-key selection without starting the game', async ({ page }) => {
+  await page.goto('/');
+  const first = page.getByRole('radio', { name: 'Animals' });
+  await first.focus();
+  await page.keyboard.press('ArrowRight');
+  const anime = page.getByRole('radio', { name: 'Anime' });
+  await expect(anime).toBeFocused();
+  await expect(anime).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
 });
 
 test('search form submits with Enter and uses the entered topic', async ({ page }) => {
