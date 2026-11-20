@@ -175,6 +175,7 @@ test('search request failures are shown on the setup screen', async ({ page }) =
   await page.locator('#gifSearch').press('Enter');
   await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#searchStatus')).toContainText('Giphy proxy request failed (503)');
+  await expect(page.locator('#startPuzzleBtn')).toBeEnabled();
 });
 
 test('blank search is rejected without requesting a GIF', async ({ page }) => {
@@ -195,7 +196,9 @@ test('source controls stay consistent while a GIF request is loading', async ({ 
   await page.locator('#gifSearch').fill('slow');
   await page.locator('#gifSearch').press('Enter');
   await page.locator('#startPuzzleBtn').click();
-  await expect(page.locator('#setup')).toHaveAttribute('inert', '');
+  await expect(page.locator('.source-layout')).toHaveAttribute('inert', '');
+  await expect(page.locator('.setup-footer')).toHaveAttribute('inert', '');
+  expect(await page.locator('#searchStatus').evaluate(status => status.closest('[inert]'))).toBeNull();
 
   // Even a scripted interaction cannot change the selected source mid-request.
   await page.locator('[data-topic="animals"]').evaluate((button) => button.click());

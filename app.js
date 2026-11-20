@@ -1,5 +1,6 @@
 (() => {
   const setupSection = document.getElementById('setup');
+  const setupControls = setupSection.querySelectorAll('[data-setup-controls]');
   const searchStatus = document.getElementById('searchStatus');
   const activeSourceLabel = document.getElementById('activeSource');
   const categoryOptions = Array.from(document.querySelectorAll('.category-option'));
@@ -281,7 +282,7 @@
   async function startFromSelection(selection) {
     if (gifRequestInFlight) return;
     gifRequestInFlight = true;
-    setupSection.inert = true;
+    setupControls.forEach(controls => { controls.inert = true; });
     startPuzzleBtn.disabled = true;
     const loadingMessage = selection.type === 'theme'
       ? THEME_LOADING_TEXT[selection.value] || 'Fetching a GIF…'
@@ -299,7 +300,7 @@
     } finally {
       hideLoading();
       gifRequestInFlight = false;
-      setupSection.inert = false;
+      setupControls.forEach(controls => { controls.inert = false; });
       startPuzzleBtn.disabled = false;
     }
   }
