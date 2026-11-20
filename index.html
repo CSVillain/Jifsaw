@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true">
@@ -53,27 +53,48 @@
       </div>
     </div>
 
-    <div class="topic-controls" aria-label="Choose GIFs for your puzzle">
-      <label class="topic-label" for="gifCategory">Choose a GIF topic</label>
-      <select id="gifCategory" class="topic-select">
-        <option value="">Pick a category…</option>
-        <option value="animals">Animals</option>
-        <option value="anime">Anime</option>
-        <option value="gaming">Gaming</option>
-        <option value="movies">Movies</option>
-        <option value="nature">Nature</option>
-        <option value="sports">Sports</option>
-      </select>
+    <section class="topic-controls" aria-labelledby="topicHeading">
+      <div class="topic-heading">
+        <h2 class="topic-title" id="topicHeading">Pick your GIF vibe</h2>
+        <p class="topic-intro">Choose a category, then start your puzzle.</p>
+      </div>
+      <div id="gifCategoryGroup" class="topic-grid" role="radiogroup" aria-label="GIF categories">
+        <button type="button" class="topic-card" role="radio" aria-checked="false" tabindex="0" data-query="animals" data-label="Animals">
+          <span class="topic-icon" aria-hidden="true">🐾</span><span class="topic-name">Animals</span>
+        </button>
+        <button type="button" class="topic-card" role="radio" aria-checked="false" tabindex="-1" data-query="anime" data-label="Anime">
+          <span class="topic-icon" aria-hidden="true">🌸</span><span class="topic-name">Anime</span>
+        </button>
+        <button type="button" class="topic-card" role="radio" aria-checked="false" tabindex="-1" data-query="gaming" data-label="Gaming">
+          <span class="topic-icon" aria-hidden="true">🎮</span><span class="topic-name">Gaming</span>
+        </button>
+        <button type="button" class="topic-card" role="radio" aria-checked="false" tabindex="-1" data-query="movies" data-label="Movies">
+          <span class="topic-icon" aria-hidden="true">🎬</span><span class="topic-name">Movies</span>
+        </button>
+        <button type="button" class="topic-card" role="radio" aria-checked="false" tabindex="-1" data-query="nature" data-label="Nature">
+          <span class="topic-icon" aria-hidden="true">🌿</span><span class="topic-name">Nature</span>
+        </button>
+        <button type="button" class="topic-card" role="radio" aria-checked="false" tabindex="-1" data-query="sports" data-label="Sports">
+          <span class="topic-icon" aria-hidden="true">🏅</span><span class="topic-name">Sports</span>
+        </button>
+      </div>
+      <button id="topicStartButton" class="topic-start-button" type="button" disabled>
+        <span id="topicStartLabel">Choose a category to begin</span><span aria-hidden="true">→</span>
+      </button>
+      <div class="topic-divider" aria-hidden="true"><span>or search for a topic</span></div>
       <form id="gifSearchForm" class="topic-search">
-        <label class="topic-label" for="gifSearch">Or search for a topic</label>
+        <label class="topic-label" for="gifSearch">Make it your own</label>
         <div class="topic-search-row">
-          <input id="gifSearch" class="topic-input" type="search" maxlength="50" autocomplete="off" placeholder="Try cats, space, or dancing">
+          <div class="topic-input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <input id="gifSearch" class="topic-input" type="search" maxlength="50" autocomplete="off" placeholder="Try cats, space, or dancing" required>
+          </div>
           <button class="topic-search-button" type="submit">Search</button>
         </div>
       </form>
-    </div>
+    </section>
 
-    <div class="choice-group" id="difficultyGroup" data-value="3x3">
+<div class="choice-group" id="difficultyGroup" data-value="3x3">
       <div class="diff-slider">
         <div class="diff-track" id="diffTrack">
           <div class="diff-fill" id="diffFill"></div>
@@ -153,7 +174,7 @@
   <script src="sound.js?v=2"></script>
   <script src="storage.js"></script>
   <script src="puzzle.js?v=12"></script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 
   <footer class="site-footer">
     <p><a href="https://gtbr.co.uk/" target="_blank" rel="noopener">GTBR</a> side-quest 🪿 · Powered by <a href="https://giphy.com/" target="_blank" rel="noopener">GIPHY</a></p>
