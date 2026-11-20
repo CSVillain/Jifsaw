@@ -239,6 +239,7 @@ test('starting a puzzle deals all pieces fully inside the viewport', async ({ pa
 test('tray pieces cannot block game toolbar controls', async ({ page }) => {
   await page.goto('/');
   await page.locator('#themeStage').click();
+  await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
 
   const control = page.locator('#newBtn');
