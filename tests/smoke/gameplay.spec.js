@@ -8,6 +8,10 @@ async function mockGiphyProxy(page) {
   await page.route('**/jifsaw-giphy-proxy*/**', async (route) => {
     const url = new URL(route.request().url());
     const query = url.searchParams.get('q');
+    if (query === 'offline') {
+      await route.abort();
+      return;
+    }
     if (query === 'failure') {
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'unavailable' }) });
       return;
@@ -30,6 +34,10 @@ async function mockGiphyProxy(page) {
   });
 }
 
+async function openGifFilters(page) {
+  await page.getByRole('button', { name: 'Categories & search' }).click();
+}
+
 test.beforeEach(async ({ page }) => {
   await mockGiphyProxy(page);
 });
@@ -44,29 +52,47 @@ test('setup screen loads with no horizontal overflow at desktop width', async ({
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
-test('source and difficulty stages sit side by side on desktop and stack on mobile', async ({ page }) => {
-  await page.setViewportSize({ width: 1200, height: 900 });
-  await page.goto('/');
-  const desktop = await page.evaluate(() => {
-    const explore = document.querySelector('.theme-panel').getBoundingClientRect();
-    const topics = document.querySelector('.topic-panel').getBoundingClientRect();
-    return { exploreX: explore.x, exploreY: explore.y, topicsX: topics.x, topicsY: topics.y };
-  });
-  expect(desktop.topicsX).toBeGreaterThan(desktop.exploreX);
-  expect(Math.abs(desktop.topicsY - desktop.exploreY)).toBeLessThan(2);
-  await expect(page.locator('#startPuzzleBtn')).toBeVisible();
-
-  await page.setViewportSize({ width: 375, height: 812 });
-  const mobile = await page.evaluate(() => ({
-    exploreY: document.querySelector('.theme-panel').getBoundingClientRect().y,
-    topicsY: document.querySelector('.topic-panel').getBoundingClientRect().y,
-    difficultyY: document.querySelector('#difficultyGroup').getBoundingClientRect().y,
-  }));
-  expect(mobile.topicsY).toBeGreaterThan(mobile.exploreY);
-  expect(mobile.difficultyY).toBeGreaterThan(mobile.topicsY);
-  await expect(page.locator('#startPuzzleBtn')).toBeVisible();
+test('source and difficulty stages keep Start puzzle in view on desktop and mobile', async ({ page }) => {
+  for (const viewport of [{ width: 1200, height: 800 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    const stages = await page.locator('#gifSource, #difficultyGroup, #startPuzzleBtn')
+      .evaluateAll(elements => elements.map(element => {
+        const { x, y, width, bottom } = element.getBoundingClientRect();
+        return { center: x + width / 2, top: y, bottom };
+      }));
+    for (const [index, stage] of stages.entries()) {
+      expect(stage.center).toBeCloseTo(viewport.width / 2, 0);
+      if (index > 0) expect(stage.top).toBeGreaterThanOrEqual(stages[index - 1].bottom);
+    }
+    await expect(page.locator('#startPuzzleBtn')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('#gifSearch')).toBeHidden();
+  }
 });
+test('GIF mixes are selectable by keyboard on the dial', async ({ page }) => {
+  await page.goto('/');
+  const previous = page.getByRole('button', { name: 'Previous GIF theme' });
+  const next = page.getByRole('button', { name: 'Next GIF theme' });
+  await previous.press('ArrowLeft');
+  await expect(page.locator('#activeSource')).toHaveText('Random');
+  await next.press('Enter');
+  await expect(page.locator('#activeSource')).toHaveText('Classic');
+  await next.press('Enter');
+  await expect(page.locator('#activeSource')).toHaveText('Trending');
+  await expect(page.locator('#game')).toHaveClass(/hidden/);
 
+  const filters = page.getByRole('button', { name: 'Categories & search' });
+  const difficulty = page.locator('#difficultyGroup');
+  // Layout offsets exclude the setup screen's independent entrance animation.
+  const layout = () => difficulty.evaluate(element => [element.offsetLeft, element.offsetTop, element.offsetWidth, element.offsetHeight]);
+  const before = await layout();
+  await filters.press('Enter');
+  await expect(page.getByRole('dialog', { name: 'GIF categories' })).toBeVisible();
+  expect(await layout()).toEqual(before);
+  await page.keyboard.press('Escape');
+  await expect(filters).toBeFocused();
+  await expect(page.getByRole('dialog')).toBeHidden();
+});
 for (const width of [320, 375, 414]) {
   test(`setup screen has no horizontal overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
@@ -78,25 +104,14 @@ for (const width of [320, 375, 414]) {
   });
 }
 
-test('theme carousel arrows cycle through themes', async ({ page }) => {
-  await page.goto('/');
-  const stage = page.locator('#themeStage');
-  await expect(stage).toHaveAttribute('data-current', 'classic');
-  await page.locator('#themeNext').click();
-  await expect(stage).toHaveAttribute('data-current', 'trending');
-  await page.locator('#themeNext').click();
-  await expect(stage).toHaveAttribute('data-current', 'random');
-});
-
 test('switching back to a theme clears the topic selection', async ({ page }) => {
   await page.goto('/');
+  await openGifFilters(page);
   await page.locator('[data-topic="animals"]').click();
   await expect(page.locator('[data-topic="animals"]')).toHaveAttribute('aria-pressed', 'true');
-  await page.locator('#themeNext').click();
-  await page.locator('#themeStage').click();
-  await expect(page.locator('#activeSource')).toHaveText('Selected: Trending');
+  await page.getByRole('button', { name: 'Next GIF theme' }).click();
+  await expect(page.locator('#activeSource')).toHaveText('Trending');
   await expect(page.locator('[data-topic="animals"]')).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.locator('#themeStage')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#game')).toHaveClass(/hidden/);
 
   const trending = page.waitForRequest(request => request.url().includes('/trending'));
@@ -106,11 +121,15 @@ test('switching back to a theme clears the topic selection', async ({ page }) =>
 
 test('category selection stays in setup until start, then New GIF repeats the topic', async ({ page }) => {
   await page.goto('/');
+  const filters = page.getByRole('button', { name: 'Categories & search' });
+  await expect(page.locator('#gifSearch')).toBeHidden();
+  await filters.press('Enter');
+  await expect(page.locator('#gifSearch')).toBeVisible();
   const requests = [];
   page.on('request', request => requests.push(request.url()));
   await page.locator('[data-topic="animals"]').focus();
   await page.keyboard.press('Enter');
-  await expect(page.locator('#activeSource')).toHaveText('Selected: Animals');
+  await expect(page.locator('#activeSource')).toHaveText('Animals');
   await expect(page.locator('[data-topic="animals"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#game')).toHaveClass(/hidden/);
   expect(requests.some(url => url.includes('/search'))).toBe(false);
@@ -135,11 +154,12 @@ test('category selection stays in setup until start, then New GIF repeats the to
 
 test('search form submits with Enter and uses the entered topic', async ({ page }) => {
   await page.goto('/');
+  await openGifFilters(page);
   const requests = [];
   page.on('request', request => requests.push(request.url()));
   await page.locator('#gifSearch').fill('cats');
   await page.locator('#gifSearch').press('Enter');
-  await expect(page.locator('#activeSource')).toHaveText('Selected: cats');
+  await expect(page.locator('#activeSource')).toHaveText('cats');
   await expect(page.locator('#game')).toHaveClass(/hidden/);
   expect(requests.some(url => url.includes('/search'))).toBe(false);
 
@@ -153,6 +173,7 @@ test('search form submits with Enter and uses the entered topic', async ({ page 
 
 test('loading is announced and an empty search shows a useful error', async ({ page }) => {
   await page.goto('/');
+  await openGifFilters(page);
   await page.locator('#gifSearch').fill('slow');
   await page.locator('#gifSearch').press('Enter');
   await page.locator('#startPuzzleBtn').click();
@@ -162,6 +183,7 @@ test('loading is announced and an empty search shows a useful error', async ({ p
   await expect(page.locator('#loadingOverlay')).toHaveClass(/hidden/);
 
   await page.locator('#newBtn').click();
+  await openGifFilters(page);
   await page.locator('#gifSearch').fill('empty');
   await page.locator('#gifSearch').press('Enter');
   await page.locator('#startPuzzleBtn').click();
@@ -171,6 +193,7 @@ test('loading is announced and an empty search shows a useful error', async ({ p
 
 test('search request failures are shown on the setup screen', async ({ page }) => {
   await page.goto('/');
+  await openGifFilters(page);
   await page.locator('#gifSearch').fill('failure');
   await page.locator('#gifSearch').press('Enter');
   await page.locator('#startPuzzleBtn').click();
@@ -178,19 +201,38 @@ test('search request failures are shown on the setup screen', async ({ page }) =
   await expect(page.locator('#startPuzzleBtn')).toBeEnabled();
 });
 
+test('search request failures explain a blocked local connection and keep the typed topic active', async ({ page }) => {
+  await page.goto('/');
+  await openGifFilters(page);
+  await page.getByRole('searchbox', { name: 'Search GIFs' }).fill('  offline  ');
+  await page.getByRole('button', { name: 'Apply search' }).click();
+
+  const search = page.waitForRequest(request => new URL(request.url()).searchParams.get('q') === 'offline');
+  await page.locator('#startPuzzleBtn').click();
+  await search;
+
+  await expect(page.locator('#activeSource')).toHaveText('offline');
+  await expect(page.locator('#searchStatus')).toHaveText('This local preview couldn’t reach the live GIF service.');
+  await expect(page.locator('#startPuzzleBtn')).toBeEnabled();
+  await openGifFilters(page);
+  await expect(page.getByRole('searchbox', { name: 'Search GIFs' })).toHaveValue('offline');
+});
+
 test('blank search is rejected without requesting a GIF', async ({ page }) => {
   await page.goto('/');
+  await openGifFilters(page);
   const requests = [];
   page.on('request', request => requests.push(request.url()));
   await page.locator('#gifSearch').fill('   ');
   await page.locator('#gifSearch').press('Enter');
-  await expect(page.locator('#searchStatus')).toContainText('Enter a topic to search for.');
+  await expect(page.locator('#gifSearchStatus')).toContainText('Enter a topic to search for.');
   expect(requests.some(url => url.includes('/search'))).toBe(false);
   await expect(page.locator('#game')).toHaveClass(/hidden/);
 });
 
 test('source controls stay consistent while a GIF request is loading', async ({ page }) => {
   await page.goto('/');
+  await openGifFilters(page);
   const requests = [];
   page.on('request', request => requests.push(request.url()));
   await page.locator('#gifSearch').fill('slow');
@@ -202,7 +244,7 @@ test('source controls stay consistent while a GIF request is loading', async ({ 
 
   // Even a scripted interaction cannot change the selected source mid-request.
   await page.locator('[data-topic="animals"]').evaluate((button) => button.click());
-  await expect(page.locator('#activeSource')).toHaveText('Selected: slow');
+  await expect(page.locator('#activeSource')).toHaveText('slow');
   await expect(page.locator('[data-topic="animals"]')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('#game')).not.toHaveClass(/hidden/);
   expect(requests.filter(url => url.includes('/search')).map(url => new URL(url).searchParams.get('q'))).toEqual(['slow']);
@@ -218,8 +260,7 @@ test('starting a puzzle deals all pieces fully inside the viewport', async ({ pa
   await page.setViewportSize({ width: 1200, height: 800 });
   await page.goto('/');
   await page.locator('[data-value="5x4"]').click(); // Hard = 20 pieces, tightest fit
-  await page.locator('#themeStage').click();
-  await expect(page.locator('#activeSource')).toHaveText('Selected: Classic');
+  await expect(page.locator('#activeSource')).toHaveText('Classic');
   await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
 
@@ -241,7 +282,6 @@ test('starting a puzzle deals all pieces fully inside the viewport', async ({ pa
 
 test('tray pieces cannot block game toolbar controls', async ({ page }) => {
   await page.goto('/');
-  await page.locator('#themeStage').click();
   await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
 
@@ -270,7 +310,6 @@ test('tray pieces cannot block game toolbar controls', async ({ page }) => {
 
 test('New button clears the board and tray', async ({ page }) => {
   await page.goto('/');
-  await page.locator('#themeStage').click();
   await page.locator('#startPuzzleBtn').click();
   await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
 
@@ -496,7 +535,6 @@ test.describe('mute toggle', () => {
   // "New button clears" test above.
   async function startAnyPuzzle(page) {
     await page.goto('/');
-    await page.locator('#themeStage').click();
     await page.locator('#startPuzzleBtn').click();
     await expect(page.locator('#game')).not.toHaveClass(/hidden/, { timeout: 10000 });
   }
