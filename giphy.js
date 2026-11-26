@@ -59,7 +59,16 @@ const Giphy = (() => {
   async function request(path, params) {
     const url = new URL(path, PROXY_BASE + '/');
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    const res = await fetch(url);
+    let res;
+    try {
+      res = await fetch(url);
+    } catch (error) {
+      const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(globalThis.location?.hostname);
+      const message = isLocal
+        ? 'This local preview couldn’t reach the live GIF service.'
+        : 'Couldn’t reach the GIF service. Check your connection and try again.';
+      throw new Error(message, { cause: error });
+    }
     const data = await res.json();
     if (!res.ok || data.meta?.status >= 400) {
       throw new Error(`Giphy proxy request failed (${res.status})`);
