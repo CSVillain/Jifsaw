@@ -6,21 +6,7 @@ const Storage = (() => {
   const PREFIX = 'jifsaw:bestTime:';
   const MUTE_KEY = 'jifsaw:muted';
 
-  function available() {
-    try {
-      const k = '__jifsaw_test__';
-      window.localStorage.setItem(k, '1');
-      window.localStorage.removeItem(k);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  const canUseStorage = available();
-
   function getBestTime(difficultyValue) {
-    if (!canUseStorage) return null;
     try {
       const raw = window.localStorage.getItem(PREFIX + difficultyValue);
       if (raw === null) return null;
@@ -35,7 +21,6 @@ const Storage = (() => {
   // than (or there is no) existing best. Returns true if a new record was
   // set, so callers can show a "new best!" moment.
   function saveBestTimeIfBetter(difficultyValue, seconds) {
-    if (!canUseStorage) return false;
     const current = getBestTime(difficultyValue);
     if (current !== null && seconds >= current) return false;
     try {
@@ -47,7 +32,6 @@ const Storage = (() => {
   }
 
   function getMuted() {
-    if (!canUseStorage) return false;
     try {
       return window.localStorage.getItem(MUTE_KEY) === '1';
     } catch {
@@ -56,7 +40,6 @@ const Storage = (() => {
   }
 
   function setMuted(muted) {
-    if (!canUseStorage) return;
     try {
       window.localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
     } catch {

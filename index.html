@@ -24,7 +24,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true">
@@ -35,74 +35,56 @@
 
   <header class="topbar">
     <div class="wordmark">
-      <h1 class="logo">Jifsaw</h1>
-      <span class="logo-emoji">🧩</span>
+      <h1 class="logo" aria-label="Jifsaw">
+        <span aria-hidden="true">J</span><span aria-hidden="true">i</span><span aria-hidden="true">f</span><span aria-hidden="true">s</span><span aria-hidden="true">a</span><span aria-hidden="true">w</span>
+      </h1>
+      <span class="logo-emoji" aria-hidden="true">🧩</span>
     </div>
   </header>
 
   <section id="setup" class="setup">
-    <div class="setup-heading">
-      <span class="step-kicker">01 <span aria-hidden="true">/</span> GIF source</span>
-      <h2>Choose your picture</h2>
-      <p>Pick a mix, a theme, or search for something specific.</p>
-    </div>
-
     <div class="source-layout" data-setup-controls>
-      <section class="source-panel theme-panel" id="themeGroup" aria-labelledby="themeHeading">
-        <h3 id="themeHeading" class="source-heading">Explore</h3>
-        <div class="theme-dial">
-          <button type="button" class="theme-arrow" id="themePrev" aria-label="Previous theme">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <div class="theme-stage" id="themeStage" role="button" tabindex="0" aria-label="Select Classic theme; use arrow keys to browse" aria-pressed="true">
-            <div class="theme-face is-active" data-value="classic">
-              <span class="theme-icon">🏆</span>
-              <span class="theme-name">Classic</span>
-              <span class="theme-hint">The OGs</span>
-            </div>
-            <div class="theme-face" data-value="trending">
-              <span class="theme-icon">🔥</span>
-              <span class="theme-name">Trending</span>
-              <span class="theme-hint">Hot sh*t</span>
-            </div>
-            <div class="theme-face" data-value="random">
-              <span class="theme-icon">🔮</span>
-              <span class="theme-name">Random</span>
-              <span class="theme-hint">Gif it a go</span>
-            </div>
-          </div>
-          <button type="button" class="theme-arrow" id="themeNext" aria-label="Next theme">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
+      <div id="gifSource" class="source-dial" role="group" aria-label="GIF source">
+        <button type="button" class="source-arrow" id="sourcePrevious" aria-label="Previous GIF theme">
+          <span aria-hidden="true">‹</span>
+        </button>
+        <div id="gifSourceFace" class="source-current" aria-live="polite" aria-atomic="true">
+          <span id="gifSourceIcon" class="source-icon" aria-hidden="true">🏆</span>
+          <span id="activeSource">Classic</span>
         </div>
-        <p class="source-caption">Or keep it classic, trending, or random.</p>
-      </section>
-
-      <section class="source-panel topic-panel" aria-labelledby="topicHeading">
-        <h3 id="topicHeading" class="source-heading">Pick a topic</h3>
+        <button type="button" class="source-arrow" id="sourceNext" aria-label="Next GIF theme">
+          <span aria-hidden="true">›</span>
+        </button>
+      </div>
+      <button type="button" id="openSourcePicker" class="source-browse" aria-haspopup="dialog">
+        <span aria-hidden="true"></span> Categories &amp; search
+      </button>
+      <dialog id="sourcePicker" class="source-picker" aria-labelledby="sourcePickerTitle">
+        <header class="source-picker-header">
+          <h2 id="sourcePickerTitle">GIF categories</h2>
+          <button type="button" id="closeSourcePicker" class="source-close" aria-label="Close GIF categories" autofocus>×</button>
+        </header>
+        <form id="gifSearchForm" class="topic-search" role="search" aria-label="GIF search">
+          <label class="topic-label" for="gifSearch">Search GIFs</label>
+          <div class="topic-search-row">
+            <input id="gifSearch" class="topic-input" type="search" maxlength="50" autocomplete="off" enterkeyhint="done" placeholder="Try cats or space">
+            <button type="submit" class="topic-submit" aria-label="Apply search">→</button>
+          </div>
+          <p id="gifSearchStatus" class="status error" role="status"></p>
+        </form>
         <div class="category-grid" role="group" aria-label="GIF topic categories">
-          <button type="button" class="category-option" data-topic="animals" aria-pressed="false"><span aria-hidden="true">🐾</span>Animals</button>
+          <button type="button" class="category-option" data-topic="animals" aria-pressed="false"><span aria-hidden="true">🦊</span>Animals</button>
           <button type="button" class="category-option" data-topic="anime" aria-pressed="false"><span aria-hidden="true">✨</span>Anime</button>
           <button type="button" class="category-option" data-topic="gaming" aria-pressed="false"><span aria-hidden="true">🎮</span>Gaming</button>
           <button type="button" class="category-option" data-topic="movies" aria-pressed="false"><span aria-hidden="true">🎬</span>Movies</button>
           <button type="button" class="category-option" data-topic="nature" aria-pressed="false"><span aria-hidden="true">🌿</span>Nature</button>
           <button type="button" class="category-option" data-topic="sports" aria-pressed="false"><span aria-hidden="true">⚽</span>Sports</button>
         </div>
-        <form id="gifSearchForm" class="topic-search">
-          <label class="topic-label" for="gifSearch">Or search for a topic</label>
-          <div class="topic-search-row">
-            <input id="gifSearch" class="topic-input" type="search" maxlength="50" autocomplete="off" placeholder="Try cats, space, or dancing">
-            <button class="topic-search-button" type="submit">Use search</button>
-          </div>
-        </form>
-      </section>
+      </dialog>
     </div>
-
-    <p id="activeSource" class="active-source" aria-live="polite" aria-atomic="true">Selected: Classic</p>
 
     <div class="setup-footer" data-setup-controls>
       <div class="choice-group" id="difficultyGroup" data-value="3x3" role="group" aria-label="Choose puzzle difficulty">
-        <span class="step-kicker">02 <span aria-hidden="true">/</span> Difficulty</span>
         <div class="diff-slider">
           <div class="diff-track" id="diffTrack">
             <div class="diff-fill" id="diffFill"></div>
@@ -179,12 +161,12 @@
 
   <video id="src" muted loop playsinline style="display:none"></video>
 
-<script src="giphy.js?v=5"></script>
+<script src="giphy.js?v=6"></script>
   <script src="confetti.js"></script>
   <script src="sound.js?v=2"></script>
-  <script src="storage.js"></script>
+  <script src="storage.js?v=2"></script>
   <script src="puzzle.js?v=13"></script>
-<script src="app.js?v=15"></script>
+<script src="app.js?v=21"></script>
 
   <footer class="site-footer">
     <p><a href="https://gtbr.co.uk/" target="_blank" rel="noopener">GTBR</a> side-quest 🪿 · Powered by <a href="https://giphy.com/" target="_blank" rel="noopener">GIPHY</a></p>

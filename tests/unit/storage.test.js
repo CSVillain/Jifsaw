@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { runInNewContext } from 'node:vm';
 import Storage from '../../storage.js';
+import storageSource from '../../storage.js?raw';
 
 describe('Storage best-time tracking', () => {
   beforeEach(() => {
@@ -84,6 +86,15 @@ describe('Storage mute preference', () => {
     expect(Storage.getMuted()).toBe(true);
     Storage.setMuted(false);
     expect(Storage.getMuted()).toBe(false);
+  });
+
+  it('honours a saved mute preference when storage writes already fail at startup', () => {
+    const localStorage = {
+      getItem: key => key === 'jifsaw:muted' ? '1' : null,
+      setItem() { throw new DOMException('Quota exceeded', 'QuotaExceededError'); },
+    };
+    const loaded = runInNewContext(storageSource + '\nStorage;', { window: { localStorage } });
+    expect(loaded.getMuted()).toBe(true);
   });
 
   it('getMuted returns false instead of throwing when storage is unavailable', () => {
